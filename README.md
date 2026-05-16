@@ -1,6 +1,6 @@
-# Kimi Code (TypeScript Reconstruction)
+# KimiX Code Vscode Plugin
 
-This directory contains a TypeScript reconstruction of the Kimi Code VS Code extension.
+This is the Monorepo of of the KimiX Code VS Code extension.
 
 ## Background
 
@@ -8,7 +8,7 @@ The original source files (`src/`) were not present in the workspace — only th
 
 ## Structure
 
-- `src/` — Extension backend (Node.js / VS Code APIs)
+- `vscode-ext/` — Extension backend (Node.js / VS Code APIs)
 - `webview-ui/` — React webview frontend (Vite + Tailwind + Zustand)
 
 ## Build
