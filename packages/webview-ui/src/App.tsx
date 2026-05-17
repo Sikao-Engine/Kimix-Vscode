@@ -117,6 +117,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
+      <div>Hello KimiX</div>
       <Header
         model={model || config?.defaultModel}
         onNewConversation={handleNewConversation}

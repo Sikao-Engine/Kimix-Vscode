@@ -33,6 +33,15 @@
     "moonshot",
     "kimi"
   ],
+  "activationEvents": [
+    "onView:kimi.webview",
+    "onCommand:kimi.openInTab",
+    "onCommand:kimi.openInSideBar",
+    "onCommand:kimi.focusInput",
+    "onCommand:kimi.newConversation",
+    "onCommand:kimi.showLogs",
+    "onCommand:kimi.resetKimi"
+  ],
   "main": "./dist/extension.js",
   "icon": "resources/kimi-icon-storefront.png",
   "contributes": {
@@ -52,7 +61,7 @@
         "kimi.executablePath": {
           "type": "string",
           "default": "",
-          "description": "Path to the KimiX executable (leave empty to use bundled CLI)"
+          "description": "Path to the Kimi Code executable (leave empty to use bundled CLI)"
         },
         "kimi.enableNewConversationShortcut": {
           "type": "boolean",
@@ -67,7 +76,7 @@
         "kimi.environmentVariables": {
           "type": "object",
           "default": {},
-          "description": "Environment variables passed to the KimiX CLI",
+          "description": "Environment variables passed to the Kimi Code CLI",
           "additionalProperties": {
             "type": "string"
           }
@@ -102,46 +111,46 @@
     "commands": [
       {
         "command": "kimi.clearAllState",
-        "title": "KimiX: [DEBUG] Clear All State"
+        "title": "Kimi Code: [DEBUG] Clear All State"
       },
       {
         "command": "kimi.openInTab",
-        "title": "KimiX: Open in New Tab",
+        "title": "Kimi Code: Open in New Tab",
         "icon": "$(link-external)"
       },
       {
         "command": "kimi.openInSideBar",
-        "title": "KimiX: Open in Side Panel",
+        "title": "Kimi Code: Open in Side Panel",
         "icon": "$(layout-sidebar-left)"
       },
       {
         "command": "kimi.focusInput",
-        "title": "KimiX: Focus Input",
+        "title": "Kimi Code: Focus Input",
         "icon": "$(edit)"
       },
       {
         "command": "kimi.insertMention",
-        "title": "KimiX: Insert Current File",
+        "title": "Kimi Code: Insert Current File",
         "icon": "$(mention)"
       },
       {
         "command": "kimi.newConversation",
-        "title": "KimiX: New Conversation",
+        "title": "Kimi Code: New Conversation",
         "icon": "$(add)"
       },
       {
         "command": "kimi.showLogs",
-        "title": "KimiX: Show Logs",
+        "title": "Kimi Code: Show Logs",
         "icon": "$(output)"
       },
       {
         "command": "kimi.resetKimi",
-        "title": "KimiX: Reset Kimi (in case of any issues/no response)",
+        "title": "Kimi Code: Reset Kimi (in case of any issues/no response)",
         "icon": "$(refresh)"
       },
       {
         "command": "kimi.logout",
-        "title": "KimiX: Logout",
+        "title": "Kimi Code: Logout",
         "icon": "$(sign-out)"
       }
     ],
@@ -162,7 +171,7 @@
       "activitybar": [
         {
           "id": "kimi-sidebar",
-          "title": "KimiX",
+          "title": "Kimi Code",
           "icon": "resources/kimi-icon.svg"
         }
       ]
@@ -172,7 +181,7 @@
         {
           "type": "webview",
           "id": "kimi.webview",
-          "name": "KimiX"
+          "name": "Kimi Code"
         }
       ]
     },

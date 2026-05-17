@@ -142,6 +142,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(provider);
 }
 
+
 export function deactivate(): void {
   debug("Kimi Code extension deactivating");
 }
