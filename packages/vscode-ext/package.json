@@ -11,7 +11,7 @@
     "directory": "node/vscode_extension"
   },
   "engines": {
-    "vscode": "^1.106.0"
+    "vscode": "^1.120.0"
   },
   "extensionKind": [
     "workspace"
@@ -244,17 +244,18 @@
   },
   "scripts": {
     "vscode:prepublish": "pnpm run build",
+    "clean": "rimraf dist node_modules",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "build": "pnpm run build:webview && pnpm run build:extension",
-    "build:webview": "pnpm --filter @moonshot-ai/vscode_extension-webview-ui build",
-    "build:extension": "tsc --noEmit && node esbuild.js --production",
+    "build": "pnpm run build:webview && pnpm run build:copy-view && pnpm run build:extension",
+    "build:webview": "pnpm --filter kimix-webview-ui run build",
+    "build:extension": "node esbuild.js --production",
+    "build:copy-view": "pnpm --filter kimix-webview-ui run copy-to-ext",
     "download:cli": "node scripts/download-cli.js",
-    "package:platform": "node scripts/vsix-package.js",
-    "package:no-embedded": "vsce package --no-dependencies --out kimi-code.vsix"
+    "package": "vsce package --no-dependencies --out kimix-ext.vsix"
   },
   "devDependencies": {
     "@types/node": "~22.19.19",

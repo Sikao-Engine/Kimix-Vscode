@@ -1,6 +1,9 @@
 allowBuilds:
   '@vscode/vsce-sign': true
+  core-js: true
+  core-js-pure: true
   esbuild: true
   keytar: true
+  msw: true
 packages:
   - packages/*

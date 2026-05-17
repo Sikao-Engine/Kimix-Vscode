@@ -8,8 +8,9 @@ The original source files (`src/`) were not present in the workspace — only th
 
 ## Structure
 
-- `vscode-ext/` — Extension backend (Node.js / VS Code APIs)
-- `webview-ui/` — React webview frontend (Vite + Tailwind + Zustand)
+- `packages`
+    - `vscode-ext/` — Extension backend (Node.js / VS Code APIs)
+    - `webview-ui/` — React webview frontend (Vite + Tailwind + Zustand)
 
 ## Build
 

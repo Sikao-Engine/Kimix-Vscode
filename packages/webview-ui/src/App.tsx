@@ -5,6 +5,7 @@ import { StreamEvent, ExtensionConfig } from "./types";
 import { Header } from "./components/Header";
 import { MessageList } from "./components/MessageList";
 import { ChatInput } from "./components/ChatInput";
+import { DebugPanel } from "./debug/DebugPanel";
 
 const App: React.FC = () => {
   const vscode = useVSCode();
@@ -127,6 +128,7 @@ const App: React.FC = () => {
         isLoading={isLoading}
         useCtrlEnter={config?.useCtrlEnterToSend}
       />
+      {import.meta.env.DEV && <DebugPanel />}
     </div>
   );
 };

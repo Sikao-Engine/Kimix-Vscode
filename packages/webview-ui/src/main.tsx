@@ -9,6 +9,11 @@ declare global {
   }
 }
 
+if (import.meta.env.DEV && typeof window.acquireVsCodeApi !== "function") {
+  const { installMock } = await import("./debug/mock-vscode");
+  installMock();
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element not found");
 

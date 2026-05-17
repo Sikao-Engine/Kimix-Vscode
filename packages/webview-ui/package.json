@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "vite",
+    "start": "node scripts/dev-with-mock.cjs",
     "build": "tsc && vite build",
     "copy-to-ext": "node scripts/copyToExt.js"
   },

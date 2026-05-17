@@ -1,0 +1,19 @@
+# Source & tests
+src/
+tests/
+scripts/
+
+# Config & build scripts
+tsconfig.json
+.eslintrc*
+.gitignore
+esbuild.js
+vitest.config.ts
+
+# Dependencies & artifacts
+node_modules/
+*.vsix
+
+# Dev files
+.vscode/
+*.log
