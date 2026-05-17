@@ -5,11 +5,6 @@
   "description": "Official KimiX Code plugin for VS Code",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/MoonshotAI/kimi-agent-sdk.git",
-    "directory": "node/vscode_extension"
-  },
   "engines": {
     "vscode": "^1.120.0"
   },
@@ -38,7 +33,15 @@
     "moonshot",
     "kimi"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:kimi.webview",
+    "onCommand:kimi.openInTab",
+    "onCommand:kimi.openInSideBar",
+    "onCommand:kimi.focusInput",
+    "onCommand:kimi.newConversation",
+    "onCommand:kimi.showLogs",
+    "onCommand:kimi.resetKimi"
+  ],
   "main": "./dist/extension.js",
   "icon": "resources/kimi-icon-storefront.png",
   "contributes": {
@@ -243,16 +246,19 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run build",
+    "vscode:prepublish": "pnpm run build:prod",
     "clean": "rimraf dist node_modules",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --platform=node --external:vscode --watch --tsconfig=tsconfig.json",
     "build": "pnpm run build:webview && pnpm run build:copy-view && pnpm run build:extension",
+    "build:prod": "pnpm run build:webview && pnpm run build:copy-view && pnpm run build:extension:prod",
     "build:webview": "pnpm --filter kimix-webview-ui run build",
-    "build:extension": "node esbuild.js --production",
+    "build:extension": "node esbuild.js",
+    "build:extension:prod": "node esbuild.js --production",
     "build:copy-view": "pnpm --filter kimix-webview-ui run copy-to-ext",
     "download:cli": "node scripts/download-cli.js",
     "package": "vsce package --no-dependencies --out kimix-ext.vsix"
