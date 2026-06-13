@@ -4,5 +4,10 @@
     "scripts": {
         "build-ext": "node scripts/build-with-deps.js kimix-vscode-ext build",
         "package-ext": "pnpm -r --filter=kimix-vscode-ext run package"
+    },
+    "pnpm": {
+        "overrides": {
+            "std-env": "^3.8.0"
+        }
     }
 }

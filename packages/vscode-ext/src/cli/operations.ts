@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { CliOptions, LoginResult, LogoutResult } from "./types";
+import { CliOptions, LoginResult, LogoutResult, ModelInfo, MCPServer } from "./types";
 
 const debug = require("debug")("kimi-sdk:cli");
 

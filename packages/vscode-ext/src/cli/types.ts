@@ -1,5 +1,5 @@
 export interface CliOptions {
-  executable: string;
+  executable?: string;
   env?: Record<string, string>;
   onLine?: (line: string) => void;
 }

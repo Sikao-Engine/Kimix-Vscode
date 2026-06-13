@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { BridgeContext } from "./context";
-import { RpcMethod, WebviewEvent, MCPServer } from "../protocol/types";
+import { RpcMethod, WebviewEvent, MCPServer, ModelInfo } from "../protocol/types";
 import { baselineTracker } from "../file/baseline";
 import { login, logout } from "../cli/operations";
 import { getExtensionConfig } from "../config";
@@ -256,7 +256,7 @@ function enrichContent(
 
 export const handlers: Record<
   RpcMethod,
-  (params: unknown, ctx: BridgeContext) => Promise<unknown>
+  (params: any, ctx: BridgeContext) => Promise<unknown>
 > = {
   // Workspace
   [RpcMethod.CheckWorkspace]: async (_params, ctx) => ({

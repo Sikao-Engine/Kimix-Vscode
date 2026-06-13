@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { baselineTracker } from "./baseline";
+import { WebviewEvent } from "../protocol/types";
 
 const IGNORED_PATTERNS = `{**/.git,**/.svn,**/.hg,**/CVS,**/.DS_Store,**/Thumbs.db,**/node_modules,**/.venv,**/__pycache__,**/.kimi}`;
 
@@ -25,7 +26,7 @@ export class FileManager {
 
   constructor(
     private getWorkDir: () => string | null,
-    private broadcast: (event: string, payload: unknown, webviewId?: string) => void,
+    private broadcast: (event: WebviewEvent, payload: unknown, webviewId?: string) => void,
   ) {
     const watcher = vscode.workspace.createFileSystemWatcher("**/*");
     watcher.onDidChange((uri) => this.onFileChange(uri));
@@ -75,7 +76,7 @@ export class FileManager {
     for (const [webviewId, state] of this.viewStates) {
       if (!state.sessionId || !state.trackedFiles.has(fsPath)) continue;
       const changes = await baselineTracker.getChanges(workDir, state.sessionId, state.trackedFiles);
-      this.broadcast("fileChangesUpdated", changes, webviewId);
+      this.broadcast(WebviewEvent.FileChangesUpdated, changes, webviewId);
     }
   }
 
