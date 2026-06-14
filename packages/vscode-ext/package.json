@@ -214,13 +214,6 @@
           "command": "kimix.logout",
           "when": "kimix.isLoggedIn"
         }
-      ],
-      "editor/context": [
-        {
-          "command": "kimix.insertMention",
-          "group": "moonshot-ai",
-          "when": "editorTextFocus"
-        }
       ]
     }
   },
