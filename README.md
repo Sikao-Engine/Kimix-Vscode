@@ -32,9 +32,9 @@ docs/            Architecture, protocol, webview, sessions, testing
 
 ```
 pnpm install
-pnpm --filter kimix-vscode-ext run build      # full build
+pnpm build-ext
 pnpm --filter kimix-vscode-ext run test        # unit tests
-pnpm --filter kimix-vscode-ext run package     # produce .vsix
+pnpm package-ext
 ```
 
 Press `F5` in `packages/vscode-ext` to launch the Extension Development Host.
