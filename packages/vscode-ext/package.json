@@ -38,7 +38,7 @@
       "properties": {
         "kimix.executable": {
           "type": "string",
-          "default": "opencode",
+          "default": "opencode-cli",
           "description": "Executable name or absolute path of the opencode-compatible server CLI"
         },
         "kimix.host": {
