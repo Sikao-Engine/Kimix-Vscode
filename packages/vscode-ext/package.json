@@ -29,42 +29,30 @@
     "chat",
     "agent",
     "mcp",
-    "skills",
-    "moonshot",
-    "kimi"
+    "skills"
   ],
   "main": "./dist/extension.js",
-  "icon": "resources/kimi-icon-storefront.png",
+  "icon": "resources/kimix-icon-storefront.png",
   "contributes": {
     "configuration": {
       "title": "KimiX Code",
       "properties": {
-        "kimi.yoloMode": {
+        "kimix.yoloMode": {
           "type": "boolean",
           "default": false,
           "description": "Auto-approve all tool calls"
         },
-        "kimi.autosave": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically save files before Kimi reads or writes them"
-        },
-        "kimi.executablePath": {
+        "kimix.executablePath": {
           "type": "string",
           "default": "",
           "description": "Path to the KimiX executable (leave empty to use bundled CLI)"
         },
-        "kimi.enableNewConversationShortcut": {
-          "type": "boolean",
-          "default": false,
-          "description": "Use Cmd/Ctrl+N to start a new conversation when Kimi is focused"
-        },
-        "kimi.useCtrlEnterToSend": {
+        "kimix.useCtrlEnterToSend": {
           "type": "boolean",
           "default": false,
           "description": "Use Ctrl/Cmd+Enter to send prompts instead of Enter"
         },
-        "kimi.environmentVariables": {
+        "kimix.environmentVariables": {
           "type": "object",
           "default": {},
           "description": "Environment variables passed to the KimiX CLI",
@@ -72,17 +60,17 @@
             "type": "string"
           }
         },
-        "kimi.showThinkingContent": {
+        "kimix.showThinkingContent": {
           "type": "boolean",
           "default": true,
           "description": "Show thinking/reasoning content in the chat UI"
         },
-        "kimi.showThinkingExpanded": {
+        "kimix.showThinkingExpanded": {
           "type": "boolean",
           "default": false,
           "description": "Auto-expand thinking/reasoning sections when shown (requires 'Show Thinking Content' to be enabled)"
         },
-        "kimi.editorContext": {
+        "kimix.editorContext": {
           "type": "string",
           "default": "never",
           "enum": [
@@ -95,37 +83,37 @@
             "Share once when conversation starts",
             "Share when active file changes"
           ],
-          "description": "Control when to share the active editor's file and cursor position with Kimi"
+          "description": "Control when to share the active editor's file and cursor position with KimiX"
         }
       }
     },
     "commands": [
       {
-        "command": "kimi.clearAllState",
+        "command": "kimix.clearAllState",
         "title": "KimiX: [DEBUG] Clear All State"
       },
       {
-        "command": "kimi.openInTab",
+        "command": "kimix.openInTab",
         "title": "KimiX: Open in New Tab",
         "icon": "$(link-external)"
       },
       {
-        "command": "kimi.openInSideBar",
+        "command": "kimix.openInSideBar",
         "title": "KimiX: Open in Side Panel",
         "icon": "$(layout-sidebar-left)"
       },
       {
-        "command": "kimi.focusInput",
+        "command": "kimix.focusInput",
         "title": "KimiX: Focus Input",
         "icon": "$(edit)"
       },
       {
-        "command": "kimi.insertMention",
+        "command": "kimix.insertMention",
         "title": "KimiX: Insert Current File",
         "icon": "$(mention)"
       },
       {
-        "command": "kimi.newConversation",
+        "command": "kimix.newConversation",
         "title": "KimiX: New Conversation",
         "icon": "$(add)"
       },
@@ -135,24 +123,24 @@
         "icon": "$(output)"
       },
       {
-        "command": "kimi.resetKimi",
+        "command": "kimix.resetKimi",
         "title": "KimiX: Reset Kimi (in case of any issues/no response)",
         "icon": "$(refresh)"
       },
       {
-        "command": "kimi.logout",
+        "command": "kimix.logout",
         "title": "KimiX: Logout",
         "icon": "$(sign-out)"
       }
     ],
     "keybindings": [
       {
-        "command": "kimi.focusInput",
+        "command": "kimix.focusInput",
         "key": "ctrl+shift+k",
         "mac": "cmd+shift+k"
       },
       {
-        "command": "kimi.insertMention",
+        "command": "kimix.insertMention",
         "key": "alt+k",
         "mac": "alt+k",
         "when": "editorTextFocus"
@@ -161,7 +149,7 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "kimi-sidebar",
+          "id": "kimix-sidebar",
           "title": "KimiX",
           "icon": "resources/kimi-icon.svg"
         }
@@ -171,7 +159,7 @@
       "kimi-sidebar": [
         {
           "type": "webview",
-          "id": "kimi.webview",
+          "id": "kimix.webview",
           "name": "KimiX"
         }
       ]
@@ -179,19 +167,19 @@
     "menus": {
       "view/title": [
         {
-          "command": "kimi.openInTab",
-          "when": "view == kimi.webview",
+          "command": "kimix.openInTab",
+          "when": "view == kimix.webview",
           "group": "navigation"
         },
         {
-          "command": "kimi.newConversation",
-          "when": "view == kimi.webview",
+          "command": "kimix.newConversation",
+          "when": "view == kimix.webview",
           "group": "navigation"
         }
       ],
       "commandPalette": [
         {
-          "command": "kimi.clearAllState",
+          "command": "kimix.clearAllState",
           "when": "isDevelopment"
         },
         {
@@ -199,37 +187,37 @@
           "when": "true"
         },
         {
-          "command": "kimi.openInSideBar",
+          "command": "kimix.openInSideBar",
           "when": "true"
         },
         {
-          "command": "kimi.focusInput",
+          "command": "kimix.focusInput",
           "when": "true"
         },
         {
-          "command": "kimi.insertMention",
+          "command": "kimix.insertMention",
           "when": "true"
         },
         {
-          "command": "kimi.newConversation",
+          "command": "kimix.newConversation",
           "when": "true"
         },
         {
-          "command": "kimi.showLogs",
+          "command": "kimix.showLogs",
           "when": "true"
         },
         {
-          "command": "kimi.resetKimi",
+          "command": "kimix.resetKimi",
           "when": "true"
         },
         {
-          "command": "kimi.logout",
-          "when": "kimi.isLoggedIn"
+          "command": "kimix.logout",
+          "when": "kimix.isLoggedIn"
         }
       ],
       "editor/context": [
         {
-          "command": "kimi.insertMention",
+          "command": "kimix.insertMention",
           "group": "moonshot-ai",
           "when": "editorTextFocus"
         }

@@ -7,3 +7,4 @@ allowBuilds:
   msw: true
 packages:
   - packages/*
+  - packages/kimix-repo-chat/webview-ui

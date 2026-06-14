@@ -48,3 +48,4 @@ tmp/
 temp/
 *.tmp
 .kimix_cache
+*.vsix
