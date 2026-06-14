@@ -36,8 +36,6 @@ pnpm-debug.log*
 Thumbs.db
 
 # IDE
-.vscode/settings.json
-.vscode/launch.json
 .idea/
 *.swp
 *.swo
