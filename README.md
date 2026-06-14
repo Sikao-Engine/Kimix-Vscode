@@ -1,13 +1,48 @@
-# KimiX Code Vscode Plugin
+# KimiX Code — VS Code Plugin
 
-This is the Monorepo of of the KimiX Code VS Code extension.
+A VS Code extension for AI-assisted, in-repo development, driven by an
+**opencode-compatible** server over HTTP + SSE.
 
-## Background
+The extension is deliberately **decoupled from any API key**. Its only hard
+requirement is a configurable executable that supports
+`<exe> serve --hostname <h> --port <p>` and the opencode HTTP/SSE protocol
+(`kimix.executable`, default `opencode`).
 
-The original source files (`src/`) were not present in the workspace — only the compiled `dist/` output remained. This TypeScript source has been reverse-engineered from the bundled JavaScript (`dist/extension.js` and `dist/webview.js`) using deep static analysis.
+## Features
+
+- **Model selection** and **Agent selection** from the server's catalogue
+- **Plan Mode** toggle (plan-only prompt decoration)
+- **Compact context** button (server-side summarization)
+- **Session management** — create / switch / delete, live transcript
+- **Streaming** assistant text, reasoning, and tool calls over SSE with
+  automatic reconnect
+- **Inline permission** prompts (allow once / always / reject)
+- Sidebar view **and** editor-tab surfaces sharing one state
 
 ## Structure
 
-- `packages`
-    - `vscode-ext/` — Extension backend (Node.js / VS Code APIs)
-    - `webview-ui/` — React webview frontend (Vite + Tailwind + Zustand)
+```
+packages/
+  vscode-ext/    Extension host (Node / VS Code APIs, esbuild)
+  webview-ui/    React + Vite + Zustand frontend
+docs/            Architecture, protocol, webview, sessions, testing
+```
+
+## Develop
+
+```
+pnpm install
+pnpm --filter kimix-vscode-ext run build      # full build
+pnpm --filter kimix-vscode-ext run test        # unit tests
+pnpm --filter kimix-vscode-ext run package     # produce .vsix
+```
+
+Press `F5` in `packages/vscode-ext` to launch the Extension Development Host.
+
+## Documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layering & data flow
+- [`docs/PROTOCOL.md`](docs/PROTOCOL.md) — HTTP/SSE + host↔webview contract
+- [`docs/WEBVIEW.md`](docs/WEBVIEW.md) — webview surfaces & CSP
+- [`docs/SESSIONS.md`](docs/SESSIONS.md) — session lifecycle & streaming
+- [`docs/TESTING.md`](docs/TESTING.md) — tests & acceptance flow

@@ -32,65 +32,45 @@
     "skills"
   ],
   "main": "./dist/extension.js",
-  "icon": "resources/kimix-icon-storefront.png",
   "contributes": {
     "configuration": {
       "title": "KimiX Code",
       "properties": {
-        "kimix.yoloMode": {
-          "type": "boolean",
-          "default": false,
-          "description": "Auto-approve all tool calls"
-        },
-        "kimix.executablePath": {
+        "kimix.executable": {
           "type": "string",
-          "default": "",
-          "description": "Path to the KimiX executable (leave empty to use bundled CLI)"
+          "default": "opencode",
+          "description": "Executable name or absolute path of the opencode-compatible server CLI"
         },
-        "kimix.useCtrlEnterToSend": {
-          "type": "boolean",
-          "default": false,
-          "description": "Use Ctrl/Cmd+Enter to send prompts instead of Enter"
+        "kimix.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Host the server binds to"
+        },
+        "kimix.basePort": {
+          "type": "number",
+          "default": 4096,
+          "description": "Starting port for the server; the extension scans upward for a free one"
         },
         "kimix.environmentVariables": {
           "type": "object",
           "default": {},
-          "description": "Environment variables passed to the KimiX CLI",
+          "description": "Environment variables passed to the server process",
           "additionalProperties": {
             "type": "string"
           }
         },
-        "kimix.showThinkingContent": {
+        "kimix.showThinking": {
           "type": "boolean",
           "default": true,
           "description": "Show thinking/reasoning content in the chat UI"
-        },
-        "kimix.showThinkingExpanded": {
-          "type": "boolean",
-          "default": false,
-          "description": "Auto-expand thinking/reasoning sections when shown (requires 'Show Thinking Content' to be enabled)"
-        },
-        "kimix.editorContext": {
-          "type": "string",
-          "default": "never",
-          "enum": [
-            "never",
-            "onConversationStart",
-            "onFileChange"
-          ],
-          "enumDescriptions": [
-            "Never share editor context",
-            "Share once when conversation starts",
-            "Share when active file changes"
-          ],
-          "description": "Control when to share the active editor's file and cursor position with KimiX"
         }
       }
     },
     "commands": [
       {
-        "command": "kimix.clearAllState",
-        "title": "KimiX: [DEBUG] Clear All State"
+        "command": "kimix.newConversation",
+        "title": "KimiX: New Conversation",
+        "icon": "$(add)"
       },
       {
         "command": "kimix.openInTab",
@@ -98,52 +78,23 @@
         "icon": "$(link-external)"
       },
       {
-        "command": "kimix.openInSideBar",
-        "title": "KimiX: Open in Side Panel",
-        "icon": "$(layout-sidebar-left)"
+        "command": "kimix.togglePlanMode",
+        "title": "KimiX: Toggle Plan Mode"
       },
       {
-        "command": "kimix.focusInput",
-        "title": "KimiX: Focus Input",
-        "icon": "$(edit)"
+        "command": "kimix.compactContext",
+        "title": "KimiX: Compact Context",
+        "icon": "$(fold)"
       },
       {
-        "command": "kimix.insertMention",
-        "title": "KimiX: Insert Current File",
-        "icon": "$(mention)"
-      },
-      {
-        "command": "kimix.newConversation",
-        "title": "KimiX: New Conversation",
-        "icon": "$(add)"
-      },
-      {
-        "command": "kimi.showLogs",
-        "title": "KimiX: Show Logs",
-        "icon": "$(output)"
-      },
-      {
-        "command": "kimix.resetKimi",
-        "title": "KimiX: Reset Kimi (in case of any issues/no response)",
+        "command": "kimix.restart",
+        "title": "KimiX: Restart Server",
         "icon": "$(refresh)"
       },
       {
-        "command": "kimix.logout",
-        "title": "KimiX: Logout",
-        "icon": "$(sign-out)"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "kimix.focusInput",
-        "key": "ctrl+shift+k",
-        "mac": "cmd+shift+k"
-      },
-      {
-        "command": "kimix.insertMention",
-        "key": "alt+k",
-        "mac": "alt+k",
-        "when": "editorTextFocus"
+        "command": "kimix.showLogs",
+        "title": "KimiX: Show Logs",
+        "icon": "$(output)"
       }
     ],
     "viewsContainers": {
@@ -156,7 +107,7 @@
       ]
     },
     "views": {
-      "kimi-sidebar": [
+      "kimix-sidebar": [
         {
           "type": "webview",
           "id": "kimix.webview",
@@ -167,52 +118,24 @@
     "menus": {
       "view/title": [
         {
+          "command": "kimix.newConversation",
+          "when": "view == kimix.webview",
+          "group": "navigation@1"
+        },
+        {
+          "command": "kimix.compactContext",
+          "when": "view == kimix.webview",
+          "group": "navigation@2"
+        },
+        {
           "command": "kimix.openInTab",
           "when": "view == kimix.webview",
-          "group": "navigation"
+          "group": "navigation@3"
         },
         {
-          "command": "kimix.newConversation",
+          "command": "kimix.restart",
           "when": "view == kimix.webview",
-          "group": "navigation"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "kimix.clearAllState",
-          "when": "isDevelopment"
-        },
-        {
-          "command": "kimi.openInTab",
-          "when": "true"
-        },
-        {
-          "command": "kimix.openInSideBar",
-          "when": "true"
-        },
-        {
-          "command": "kimix.focusInput",
-          "when": "true"
-        },
-        {
-          "command": "kimix.insertMention",
-          "when": "true"
-        },
-        {
-          "command": "kimix.newConversation",
-          "when": "true"
-        },
-        {
-          "command": "kimix.showLogs",
-          "when": "true"
-        },
-        {
-          "command": "kimix.resetKimi",
-          "when": "true"
-        },
-        {
-          "command": "kimix.logout",
-          "when": "kimix.isLoggedIn"
+          "group": "navigation@4"
         }
       ]
     }
@@ -232,7 +155,6 @@
     "build:extension": "node esbuild.js",
     "build:extension:prod": "node esbuild.js --production",
     "build:copy-view": "pnpm --filter kimix-webview-ui run copy-to-ext",
-    "download:cli": "node scripts/download-cli.js",
     "package": "vsce package --no-dependencies --out kimix-ext.vsix"
   },
   "devDependencies": {
@@ -242,12 +164,9 @@
     "@vscode/vsce": "^3.9.1",
     "esbuild": "^0.27.7",
     "eslint": "^9.39.4",
+    "rimraf": "^6.0.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.3",
     "vitest": "^3.1.3"
-  },
-  "dependencies": {
-    "debug": "^4.4.3",
-    "zod": "^3.25.76"
   }
 }
