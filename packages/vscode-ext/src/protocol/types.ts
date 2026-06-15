@@ -79,3 +79,25 @@ export interface PromptBody {
 }
 
 export type PermissionReply = "once" | "always" | "reject";
+
+/** A workspace file reference shown in the @ mention picker. */
+export interface FileListItem {
+  path: string;
+  label: string;
+}
+
+/** A workspace symbol reference shown in the @ mention picker. */
+export interface SymbolListItem {
+  name: string;
+  path: string;
+  kind?: string;
+  range?: { start: { line: number; character: number }; end: { line: number; character: number } };
+}
+
+/** A file/symbol reference attached to a composer prompt. */
+export interface FileRef {
+  id: string;
+  path: string;
+  label: string;
+  kind: "file" | "symbol";
+}

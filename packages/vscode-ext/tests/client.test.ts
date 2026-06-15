@@ -91,4 +91,34 @@ describe("OpencodeClient", () => {
     expect(providers[0].id).toBe("openai");
     expect(providers[0].models[0]).toMatchObject({ id: "gpt-4" });
   });
+
+  it("maps message metadata including model and provider", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse([
+          {
+            info: {
+              id: "m1",
+              role: "assistant",
+              modelID: "gpt-4",
+              providerID: "openai",
+              agent: "build",
+              time: { created: "2024-01-01T00:00:00Z" },
+            },
+            parts: [{ type: "text", text: "hello" }],
+          },
+        ]),
+      ),
+    );
+    const messages = await client.getMessages("s1");
+    expect(messages[0].info).toMatchObject({
+      id: "m1",
+      role: "assistant",
+      modelID: "gpt-4",
+      providerID: "openai",
+      agent: "build",
+      createdAt: "2024-01-01T00:00:00Z",
+    });
+  });
 });

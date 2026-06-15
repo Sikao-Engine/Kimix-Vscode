@@ -2,8 +2,8 @@ import { useEffect } from "react";
 import { Toolbar } from "./components/Toolbar";
 import { MessageList } from "./components/MessageList";
 import { Composer } from "./components/Composer";
-import { SessionList } from "./components/SessionList";
 import { PermissionPrompt } from "./components/PermissionPrompt";
+import { PendingQueue } from "./components/PendingQueue";
 import { useStore } from "./store";
 import { onHostMessage, postToHost } from "./vscodeApi";
 
@@ -31,9 +31,9 @@ export function App() {
       )}
       {error && <div className="banner banner-error">{error}</div>}
       <div className="body">
-        <SessionList />
         <div className="chat">
           <MessageList />
+          <PendingQueue />
           <PermissionPrompt />
           <Composer />
         </div>

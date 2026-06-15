@@ -22,7 +22,7 @@ packages/
         messages.ts           Host <-> Webview message contract
       server/
         serverProcess.ts      Low-level spawn, port alloc, health poll, & process-tree cleanup
-        serverManager.ts      Lifecycle manager: PID file, reuse, own, exit safety net
+        serverManager.ts      Lifecycle manager: PID file, reuse, exit safety net
       serverStatusBar.ts      Status-bar item + quick-pick server menu
       session/
         sessionManager.ts     Active-session stream + session list
@@ -35,7 +35,8 @@ packages/
     src/
       main.tsx, App.tsx
       store.ts, vscodeApi.ts, protocol.ts
-      components/             Toolbar, MessageList, Composer, SessionList, ...
+      components/             Toolbar, MessageList, Composer, PendingQueue, ReasoningBlock, PermissionPrompt, ...
+    tests/                    Vitest + jsdom store tests
 ```
 
 ## Layering & decoupling
@@ -59,11 +60,13 @@ extension.ts
 - The webview never talks to the server directly; everything flows through the
   controller's typed message bridge.
 
-## Data flow (a single prompt)
+## Data flow
+
+### Single prompt
 
 ```
 User types in Composer
-  → postToHost({ sendPrompt })
+  → postToHost({ sendPrompt, turnId })
   → KimixController.dispatch
   → SessionManager.sendPrompt
   → OpencodeClient.sendPromptAsync (POST /session/:id/prompt_async, 204)
@@ -72,8 +75,53 @@ Server streams over GET /event (global SSE)
   → OpencodeClient.streamEvents (reconnecting)
   → sseParser.parseEvent (filters by sessionID)
   → SessionManager emits text/tool/idle/permission
-  → KimixController.post → webview.postMessage
+  → KimixController.post (attaches turnId) → webview.postMessage
   → store.applyHostMessage → React re-render
+```
+
+### Pending queue & turn id
+
+The webview keeps a local **pending queue**. When the user sends while the model
+is busy, the prompt is enqueued instead of being dropped. When `streamIdle`
+arrives for the matching `turnId`, the locked (next) queued prompt is sent
+automatically.
+
+```
+Composer.send() while busy
+  → store.enqueuePrompt(text)
+  → PendingQueue renders above Composer
+
+streamIdle for current turnId
+  → store.applyHostMessage
+  → if pending has locked item: sendPrompt(locked, newTurnId)
+  → else: busy=false, refresh messages
+```
+
+### Stop / abort
+
+Clicking **Stop** immediately clears `busy` and `activeTurnId` in the webview,
+then asks the host to abort in the background. Any late SSE events carrying the
+old `turnId` are ignored by the store.
+
+```
+Stop click
+  → store.stopGeneration(): busy=false, activeTurnId=undefined
+  → postToHost({ abort, turnId })
+  → KimixController aborts the session asynchronously
+  → posts { aborted, turnId } to the webview
+```
+
+### @ file / symbol mentions
+
+```
+User types '@' in Composer
+  → MentionPicker opens
+  → requestFileList / requestWorkspaceSymbols
+  → Host: workspace.findFiles / executeWorkspaceSymbolProvider
+  → fileList / workspaceSymbols pushed to webview
+  → User selects item
+  → Attachment chip rendered in Composer
+  → Send prepends '@path' references to the prompt text
 ```
 
 See `docs/PROTOCOL.md`, `docs/WEBVIEW.md`, `docs/SESSIONS.md` for details.
@@ -96,13 +144,13 @@ deactivate() / VS Code subscriptions dispose
             ├─ killWindows()  — taskkill /t /f (Windows)
             └─ killUnix()     — SIGTERM → 3s → SIGKILL (Unix)
             └─ delete PID file
+```
 
 Process-exit safety net (extension host crash)
   └─ process.on('exit' | 'SIGTERM' | 'SIGINT' | 'SIGHUP')
        └─ ServerLifecycleManager synchronous cleanup
             ├─ unlink PID file
             └─ kill owned child (best-effort)
-```
 
 The controller is registered with `context.subscriptions.push(controller)`, but
 `deactivate()` also explicitly calls `await _controller.dispose()` as a
@@ -125,3 +173,5 @@ pnpm --filter kimix-vscode-ext run package    # produce .vsix
 | `kimix.basePort`             | `4096`        | Starting port (scans upward if taken)     |
 | `kimix.environmentVariables` | `{}`          | Extra env vars for the server process     |
 | `kimix.showThinking`         | `true`        | Show reasoning content in the UI          |
+| `kimix.autoScroll`           | `true`        | Auto-scroll during streaming              |
+| `kimix.enableMentions`       | `true`        | Enable @ file/symbol mentions             |

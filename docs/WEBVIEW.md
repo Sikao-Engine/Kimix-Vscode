@@ -51,9 +51,30 @@ The bundle is loaded as `dist/webview.js` resolved through
   incoming `HostToWebview` messages; `actions.*` are thin `postToHost` wrappers.
 - **Streaming**: `streamText` appends/merges into the current streaming bubble;
   `streamTool` upserts tool-call rows keyed by `callID`; `streamIdle` finalises
-  the turn and requests a transcript `refresh`.
+  the turn and requests a transcript `refresh`. Each streaming turn carries a
+  `turnId`; stale events for an already-stopped turn are ignored.
+- **Pending queue**: while the model is busy, new prompts are queued locally and
+  shown in `PendingQueue` above the composer. The locked item is submitted
+  automatically when the current turn ends.
+- **Reasoning**: reasoning parts render inside collapsible `ReasoningBlock`
+  cards. A global collapse/expand toggle is available in the toolbar.
+- **Mentions**: typing `@` in `Composer` opens `MentionPicker`, which queries
+  the host for workspace files and symbols. Selected items become attachment
+  chips and are formatted as `@path` references in the sent prompt.
 - **Transport**: `vscodeApi.ts` wraps `acquireVsCodeApi()` with typed
   `postToHost` / `onHostMessage`.
+
+## Components
+
+| Component | Purpose |
+| --------- | ------- |
+| `Toolbar` | Agent/model/session pickers, plan mode, reasoning collapse, server controls |
+| `MessageList` | Persisted transcript + streaming bubble, timestamps, model labels, auto-scroll |
+| `ReasoningBlock` | Collapsible reasoning/thinking content |
+| `PendingQueue` | Queued prompts shown above the composer |
+| `Composer` | Auto-resizing textarea, @ mentions, attachment chips, Send/Stop |
+| `MentionPicker` | File/symbol search results for `@` mentions |
+| `PermissionPrompt` | Allow once / Always / Reject bar |
 
 ## Build pipeline
 
@@ -65,3 +86,9 @@ esbuild.js:  bundle src/extension.ts    → vscode-ext/dist/extension.js
 
 The extension serves `dist/webview.js`; `dist/extension.js` is the activated
 entry (`main` in package.json).
+
+## Tests
+
+`packages/webview-ui/tests/` runs with Vitest + jsdom. Store logic (pending
+queue, reasoning collapse, turn-id filtering) is covered without needing the
+full VS Code webview environment.

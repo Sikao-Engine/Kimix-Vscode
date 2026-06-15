@@ -10,10 +10,12 @@
 
 import type {
   Agent,
+  FileListItem,
   MessageWithParts,
   PermissionReply,
   Provider,
   Session,
+  SymbolListItem,
 } from "./types";
 
 export type PlanMode = "build" | "plan";
@@ -36,6 +38,9 @@ export interface UIState {
   selectedAgent?: string;
   selectedModel?: { providerID: string; modelID: string };
   planMode: PlanMode;
+  showThinking: boolean;
+  autoScroll: boolean;
+  enableMentions: boolean;
 }
 
 // ── Webview → Host ──────────────────────────────────────────────────
@@ -45,8 +50,8 @@ export type WebviewToHost =
   | { type: "startServer" }
   | { type: "stopServer" }
   | { type: "restartServer" }
-  | { type: "sendPrompt"; text: string }
-  | { type: "abort" }
+  | { type: "sendPrompt"; text: string; turnId?: string }
+  | { type: "abort"; turnId?: string }
   | { type: "newSession" }
   | { type: "selectSession"; sessionId: string }
   | { type: "deleteSession"; sessionId: string }
@@ -55,7 +60,9 @@ export type WebviewToHost =
   | { type: "setPlanMode"; mode: PlanMode }
   | { type: "compactContext" }
   | { type: "respondPermission"; permissionId: string; reply: PermissionReply }
-  | { type: "refresh" };
+  | { type: "refresh" }
+  | { type: "requestFileList"; query?: string }
+  | { type: "requestWorkspaceSymbols"; query: string };
 
 // ── Host → Webview ──────────────────────────────────────────────────
 
@@ -65,6 +72,7 @@ export type HostToWebview =
   | {
       type: "streamText";
       sessionId: string;
+      turnId?: string;
       kind: "text" | "reasoning";
       delta: string;
       full: string;
@@ -72,17 +80,21 @@ export type HostToWebview =
   | {
       type: "streamTool";
       sessionId: string;
+      turnId?: string;
       toolName: string;
       status: string;
       title: string;
       callID: string;
       input: string;
     }
-  | { type: "streamIdle"; sessionId: string }
+  | { type: "streamIdle"; sessionId: string; turnId?: string }
   | {
       type: "permission";
       sessionId: string;
       permissionId: string;
       title: string;
     }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "fileList"; files: FileListItem[] }
+  | { type: "workspaceSymbols"; symbols: SymbolListItem[] }
+  | { type: "aborted"; sessionId: string; turnId?: string };

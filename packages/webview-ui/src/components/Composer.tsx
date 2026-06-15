@@ -1,48 +1,170 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { actions, useStore } from "../store";
+import type { FileRef } from "../protocol";
+import { MentionPicker } from "./MentionPicker";
 
-/** Prompt input. Enter sends, Shift+Enter inserts a newline. */
+/** Prompt input with @ mentions, attachments, and send/stop controls. */
 export function Composer() {
-  const [text, setText] = useState("");
+  const text = useStore((s) => s.composerText);
+  const setText = useStore((s) => s.setComposerText);
+  const [mentionQuery, setMentionQuery] = useState<string | undefined>(undefined);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   const busy = useStore((s) => s.busy);
   const status = useStore((s) => s.ui.status);
+  const attachments = useStore((s) => s.attachments);
+  const insertAttachment = useStore((s) => s.insertFileRef);
+  const removeAttachment = useStore((s) => s.removeAttachment);
+  const clearAttachments = useStore((s) => s.clearAttachments);
+  const enqueuePrompt = useStore((s) => s.enqueuePrompt);
+  const stopGeneration = useStore((s) => s.stopGeneration);
 
   const send = () => {
     const value = text.trim();
-    if (!value) {
+    if (!value && attachments.length === 0) {
       return;
     }
-    actions.sendPrompt(value);
+    const finalText = value || " ";
+
+    if (busy) {
+      enqueuePrompt(finalText);
+    } else {
+      const turnId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const promptWithRefs = formatRefs(finalText, attachments);
+      actions.sendPrompt(promptWithRefs, turnId);
+    }
+
     setText("");
+    clearAttachments();
+    setMentionQuery(undefined);
   };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setText(value);
+    detectMention(value, e.target.selectionStart);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      mentionQuery !== undefined &&
+      (e.key === "ArrowDown" ||
+        e.key === "ArrowUp" ||
+        e.key === "Enter" ||
+        e.key === "Escape")
+    ) {
+      // Let MentionPicker handle these via its own listener, but prevent
+      // default textarea behaviour (cursor moves / newline) while open.
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  const detectMention = (value: string, cursor: number) => {
+    if (!useStore.getState().ui.enableMentions) {
+      setMentionQuery(undefined);
+      return;
+    }
+    const before = value.slice(0, cursor);
+    const match = before.match(/@([^\s@]*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+    } else {
+      setMentionQuery(undefined);
+    }
+  };
+
+  const handleSelect = (
+    path: string,
+    label: string,
+    kind: "file" | "symbol",
+  ) => {
+    const ref: FileRef = {
+      id: `${kind}-${path}-${Date.now()}`,
+      path,
+      label,
+      kind,
+    };
+    insertAttachment(ref);
+    setMentionQuery(undefined);
+    textareaRef.current?.focus();
+  };
+
+  const handleCloseMention = () => {
+    setMentionQuery(undefined);
+    textareaRef.current?.focus();
+  };
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) {
+      return;
+    }
+    // Auto-resize composer height.
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  }, [text]);
+
+  const canSend = status === "running";
 
   return (
     <div className="composer">
-      <textarea
-        className="composer-input"
-        value={text}
-        placeholder={
-          status === "running" ? "Ask anything…" : "Server not ready"
-        }
-        disabled={status !== "running"}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            send();
+      {attachments.length > 0 && (
+        <div className="attachments">
+          {attachments.map((a) => (
+            <span key={a.id} className="attachment-chip">
+              @{a.label}
+              <button
+                className="attachment-remove"
+                onClick={() => removeAttachment(a.id)}
+                aria-label={`Remove ${a.label}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="composer-input-wrap">
+        <textarea
+          ref={textareaRef}
+          className="composer-input"
+          value={text}
+          placeholder={
+            canSend
+              ? "Ask anything… (type @ to reference a file)"
+              : "Server not ready"
           }
-        }}
-      />
+          disabled={!canSend}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          rows={1}
+          aria-label="Prompt input"
+        />
+        {mentionQuery !== undefined && (
+          <MentionPicker
+            query={mentionQuery}
+            onSelect={handleSelect}
+            onClose={handleCloseMention}
+          />
+        )}
+      </div>
+
       <div className="composer-actions">
         {busy ? (
-          <button className="control" onClick={() => actions.abort()}>
+          <button className="control" onClick={() => stopGeneration()}>
             Stop
           </button>
         ) : (
           <button
             className="control primary"
             onClick={send}
-            disabled={status !== "running"}
+            disabled={!canSend || (!text.trim() && attachments.length === 0)}
           >
             Send
           </button>
@@ -50,4 +172,12 @@ export function Composer() {
       </div>
     </div>
   );
+}
+
+function formatRefs(text: string, attachments: FileRef[]): string {
+  if (attachments.length === 0) {
+    return text;
+  }
+  const refs = attachments.map((a) => `@${a.path}`).join(" ");
+  return `${refs}\n\n${text}`;
 }

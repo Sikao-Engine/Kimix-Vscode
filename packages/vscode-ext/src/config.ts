@@ -6,6 +6,8 @@ export interface KimixConfig {
   basePort: number;
   environmentVariables: Record<string, string>;
   showThinking: boolean;
+  autoScroll: boolean;
+  enableMentions: boolean;
 }
 
 const SECTION = "kimix";
@@ -22,6 +24,8 @@ export function readConfig(): KimixConfig {
       {},
     ),
     showThinking: c.get<boolean>("showThinking", true),
+    autoScroll: c.get<boolean>("autoScroll", true),
+    enableMentions: c.get<boolean>("enableMentions", true),
   };
 }
 

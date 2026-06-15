@@ -119,14 +119,40 @@ Defined in `src/protocol/messages.ts` (host) and mirrored in
 
 ### Webview → Host
 
-`ready` · `sendPrompt` · `abort` · `newSession` · `selectSession` ·
-`deleteSession` · `selectAgent` · `selectModel` · `setPlanMode` ·
-`compactContext` · `respondPermission` · `refresh`
+`ready` · `startServer` · `stopServer` · `restartServer` · `sendPrompt` ·
+`abort` · `newSession` · `selectSession` · `deleteSession` · `selectAgent` ·
+`selectModel` · `setPlanMode` · `compactContext` · `respondPermission` ·
+`refresh` · `requestFileList` · `requestWorkspaceSymbols`
+
+`sendPrompt` and `abort` carry an optional `turnId`. The webview generates a
+fresh `turnId` per prompt; the host echoes it on all streaming events for that
+turn so the UI can ignore stale traffic after the user clicks **Stop** or sends
+a follow-up prompt.
 
 ### Host → Webview
 
 `state` (full `UIState` snapshot) · `messages` · `streamText` · `streamTool` ·
-`streamIdle` · `permission` · `error`
+`streamIdle` · `permission` · `error` · `fileList` · `workspaceSymbols` ·
+`aborted`
 
-The host pushes a complete `UIState` on every meaningful change (no partial
-diffs), keeping the webview a pure projection of host state.
+`streamText`, `streamTool`, `streamIdle` and `aborted` include the optional
+`turnId`. The host pushes a complete `UIState` on every meaningful change (no
+partial diffs), keeping the webview a pure projection of host state.
+
+### Workspace mentions
+
+The webview asks the host for workspace file/symbol candidates:
+
+```ts
+// Webview → Host
+{ type: "requestFileList", query?: string }
+{ type: "requestWorkspaceSymbols", query: string }
+
+// Host → Webview
+{ type: "fileList", files: { path: string; label: string }[] }
+{ type: "workspaceSymbols", symbols: { name: string; path: string; kind?: string; range? }[] }
+```
+
+The host uses VS Code APIs (`workspace.findFiles` and
+`vscode.executeWorkspaceSymbolProvider`) and caps results to keep the picker
+responsive.

@@ -35,8 +35,19 @@ export interface MessagePart {
   state?: Record<string, unknown>;
 }
 
+export interface MessageInfo {
+  id: string;
+  role: "user" | "assistant" | "system";
+  modelID?: string;
+  providerID?: string;
+  agent?: string;
+  cost?: number;
+  tokens?: Record<string, unknown>;
+  createdAt?: string;
+}
+
 export interface MessageWithParts {
-  info: { id: string; role: string };
+  info: MessageInfo;
   parts: MessagePart[];
 }
 
@@ -58,6 +69,28 @@ export interface UIState {
   selectedAgent?: string;
   selectedModel?: { providerID: string; modelID: string };
   planMode: PlanMode;
+  showThinking: boolean;
+  autoScroll: boolean;
+  enableMentions: boolean;
+}
+
+export interface FileListItem {
+  path: string;
+  label: string;
+}
+
+export interface SymbolListItem {
+  name: string;
+  path: string;
+  kind?: string;
+  range?: { start: { line: number; character: number }; end: { line: number; character: number } };
+}
+
+export interface FileRef {
+  id: string;
+  path: string;
+  label: string;
+  kind: "file" | "symbol";
 }
 
 export type PermissionReply = "once" | "always" | "reject";
@@ -67,8 +100,8 @@ export type WebviewToHost =
   | { type: "startServer" }
   | { type: "stopServer" }
   | { type: "restartServer" }
-  | { type: "sendPrompt"; text: string }
-  | { type: "abort" }
+  | { type: "sendPrompt"; text: string; turnId?: string }
+  | { type: "abort"; turnId?: string }
   | { type: "newSession" }
   | { type: "selectSession"; sessionId: string }
   | { type: "deleteSession"; sessionId: string }
@@ -77,7 +110,9 @@ export type WebviewToHost =
   | { type: "setPlanMode"; mode: PlanMode }
   | { type: "compactContext" }
   | { type: "respondPermission"; permissionId: string; reply: PermissionReply }
-  | { type: "refresh" };
+  | { type: "refresh" }
+  | { type: "requestFileList"; query?: string }
+  | { type: "requestWorkspaceSymbols"; query: string };
 
 export type HostToWebview =
   | { type: "state"; state: UIState }
@@ -85,6 +120,7 @@ export type HostToWebview =
   | {
       type: "streamText";
       sessionId: string;
+      turnId?: string;
       kind: "text" | "reasoning";
       delta: string;
       full: string;
@@ -92,17 +128,21 @@ export type HostToWebview =
   | {
       type: "streamTool";
       sessionId: string;
+      turnId?: string;
       toolName: string;
       status: string;
       title: string;
       callID: string;
       input: string;
     }
-  | { type: "streamIdle"; sessionId: string }
+  | { type: "streamIdle"; sessionId: string; turnId?: string }
   | {
       type: "permission";
       sessionId: string;
       permissionId: string;
       title: string;
     }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "fileList"; files: FileListItem[] }
+  | { type: "workspaceSymbols"; symbols: SymbolListItem[] }
+  | { type: "aborted"; sessionId: string; turnId?: string };

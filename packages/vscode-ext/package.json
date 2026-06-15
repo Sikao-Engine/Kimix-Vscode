@@ -63,6 +63,16 @@
           "type": "boolean",
           "default": true,
           "description": "Show thinking/reasoning content in the chat UI"
+        },
+        "kimix.autoScroll": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-scroll to the bottom of the chat while the model is streaming"
+        },
+        "kimix.enableMentions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable @ file/symbol mentions in the composer"
         }
       }
     },

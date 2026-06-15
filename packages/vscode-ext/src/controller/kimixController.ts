@@ -9,6 +9,7 @@ import {
   UIState,
   WebviewToHost,
 } from "../protocol/messages";
+import type { FileListItem, SymbolListItem } from "../protocol/types";
 import {
   ServerLifecycleManager,
   ServerLifecycleManagerConfig,
@@ -41,6 +42,9 @@ export class KimixController implements vscode.Disposable {
   private selectedModel: { providerID: string; modelID: string } | undefined;
   private serverStatus: UIState["status"] = "stopped";
   private serverError: string | undefined;
+
+  /** Id of the turn currently being streamed; echoed back in SSE events. */
+  private currentTurnId: string | undefined;
 
   private _ensurePromise: Promise<void> | undefined;
   private _onDidChangeServerStatus = new vscode.EventEmitter<ServerStatusInfo>();
@@ -95,21 +99,38 @@ export class KimixController implements vscode.Disposable {
         await this.sessions?.refreshSessions();
         this.pushState();
         break;
-      case "sendPrompt":
+      case "sendPrompt": {
+        this.currentTurnId = msg.turnId;
         await this.sessions?.sendPrompt(this.decoratePrompt(msg.text), {
           agent: this.selectedAgent,
           model: this.selectedModel,
         });
         break;
-      case "abort":
-        await this.sessions?.abort();
+      }
+      case "abort": {
+        const abortedTurnId = this.currentTurnId;
+        // Fire the abort request in the background so the UI recovers instantly.
+        this.sessions
+          ?.abort()
+          .catch((err) =>
+            Logger.error("[controller] background abort failed", String(err)),
+          );
+        this.currentTurnId = undefined;
+        this.post({
+          type: "aborted",
+          sessionId: this.sessions?.currentSessionId ?? "",
+          turnId: abortedTurnId,
+        });
         break;
+      }
       case "newSession":
+        this.currentTurnId = undefined;
         await this.sessions?.newSession();
         this.pushState();
         await this.pushMessages();
         break;
       case "selectSession":
+        this.currentTurnId = undefined;
         await this.sessions?.selectSession(msg.sessionId);
         this.pushState();
         await this.pushMessages();
@@ -142,6 +163,74 @@ export class KimixController implements vscode.Disposable {
       case "respondPermission":
         await this.sessions?.respondPermission(msg.permissionId, msg.reply);
         break;
+      case "requestFileList":
+        await this.handleRequestFileList(msg.query);
+        break;
+      case "requestWorkspaceSymbols":
+        await this.handleRequestWorkspaceSymbols(msg.query);
+        break;
+    }
+  }
+
+  // ── Workspace mention lookups ──────────────────────────────────
+
+  private async handleRequestFileList(query?: string): Promise<void> {
+    if (!this.config.enableMentions) {
+      this.post({ type: "fileList", files: [] });
+      return;
+    }
+    const pattern = query ? `**/*${query}*` : "**/*";
+    try {
+      const uris = await vscode.workspace.findFiles(
+        pattern,
+        "**/node_modules/**",
+        200,
+      );
+      const files: FileListItem[] = uris
+        .map((uri) => {
+          const relative = vscode.workspace.asRelativePath(uri, false);
+          return { path: relative, label: relative };
+        })
+        .sort((a, b) => a.label.localeCompare(b.label));
+      this.post({ type: "fileList", files });
+    } catch (err) {
+      Logger.error("[controller] file list failed", String(err));
+      this.post({ type: "fileList", files: [] });
+    }
+  }
+
+  private async handleRequestWorkspaceSymbols(query: string): Promise<void> {
+    if (!this.config.enableMentions) {
+      this.post({ type: "workspaceSymbols", symbols: [] });
+      return;
+    }
+    try {
+      const items =
+        (await vscode.commands.executeCommand<vscode.SymbolInformation[]>(
+          "vscode.executeWorkspaceSymbolProvider",
+          query,
+        )) ?? [];
+      const symbols: SymbolListItem[] = items.slice(0, 200).map((item) => ({
+        name: item.name,
+        path: vscode.workspace.asRelativePath(item.location.uri, false),
+        kind: vscode.SymbolKind[item.kind],
+        range: item.location.range
+          ? {
+              start: {
+                line: item.location.range.start.line,
+                character: item.location.range.start.character,
+              },
+              end: {
+                line: item.location.range.end.line,
+                character: item.location.range.end.character,
+              },
+            }
+          : undefined,
+      }));
+      this.post({ type: "workspaceSymbols", symbols });
+    } catch (err) {
+      Logger.error("[controller] workspace symbols failed", String(err));
+      this.post({ type: "workspaceSymbols", symbols: [] });
     }
   }
 
@@ -304,6 +393,7 @@ export class KimixController implements vscode.Disposable {
     this.client = undefined;
     this.serverStatus = "stopped";
     this.serverError = undefined;
+    this.currentTurnId = undefined;
   }
 
   private wireSessionEvents(sm: SessionManager): void {
@@ -311,6 +401,7 @@ export class KimixController implements vscode.Disposable {
       this.post({
         type: "streamText",
         sessionId: e.sessionId,
+        turnId: this.currentTurnId,
         kind: e.kind,
         delta: e.delta,
         full: e.full,
@@ -320,6 +411,7 @@ export class KimixController implements vscode.Disposable {
       this.post({
         type: "streamTool",
         sessionId: e.sessionId,
+        turnId: this.currentTurnId,
         toolName: e.toolName,
         status: e.status,
         title: e.title,
@@ -328,7 +420,11 @@ export class KimixController implements vscode.Disposable {
       }),
     );
     sm.on("idle", (e) =>
-      this.post({ type: "streamIdle", sessionId: e.sessionId }),
+      this.post({
+        type: "streamIdle",
+        sessionId: e.sessionId,
+        turnId: this.currentTurnId,
+      }),
     );
     sm.on("permission", (e) =>
       this.post({
@@ -403,6 +499,9 @@ export class KimixController implements vscode.Disposable {
       selectedAgent: this.selectedAgent,
       selectedModel: this.selectedModel,
       planMode: this.planMode,
+      showThinking: this.config.showThinking,
+      autoScroll: this.config.autoScroll,
+      enableMentions: this.config.enableMentions,
     };
     this.post({ type: "state", state });
     this._onDidChangeServerStatus.fire(this.getServerStatus());

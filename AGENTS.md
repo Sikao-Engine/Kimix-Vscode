@@ -101,10 +101,12 @@ packages/webview-ui/
     ├── vscodeApi.ts            # Typed acquireVsCodeApi() wrapper
     ├── styles.css              # All styles (JS-injected)
     └── components/
-        ├── Toolbar.tsx         # Agent/model pickers, Plan Mode toggle, Compact, New
-        ├── MessageList.tsx     # Persisted messages + streaming bubbles + tool calls
-        ├── Composer.tsx        # Prompt textarea + Send/Stop
-        ├── SessionList.tsx     # Left-rail sessions (click=switch, ×=delete)
+        ├── Toolbar.tsx         # Agent/model/session pickers, Plan Mode, reasoning collapse, server controls
+        ├── MessageList.tsx     # Persisted messages + streaming bubbles + tool calls + timestamps + model labels
+        ├── Composer.tsx        # Prompt textarea + @ mentions + attachments + Send/Stop
+        ├── MentionPicker.tsx   # File/symbol search results for @ mentions
+        ├── PendingQueue.tsx    # Queued prompts shown above composer
+        ├── ReasoningBlock.tsx  # Collapsible reasoning/thinking cards
         └── PermissionPrompt.tsx # Allow once / Always / Reject bar
 ```
 
@@ -174,6 +176,8 @@ Process-exit safety: process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP') → kill() +
 | `kimix.basePort` | `4096` | Starting port (scans upward) |
 | `kimix.environmentVariables` | `{}` | Extra env for server process |
 | `kimix.showThinking` | `true` | Show reasoning in UI |
+| `kimix.autoScroll` | `true` | Auto-scroll during streaming |
+| `kimix.enableMentions` | `true` | Enable @ file/symbol mentions |
 
 ---
 
@@ -181,9 +185,12 @@ Process-exit safety: process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP') → kill() +
 
 Mirrored files — **keep in sync**: `vscode-ext/src/protocol/messages.ts` ⇄ `webview-ui/src/protocol.ts`
 
-**Webview → Host:** `ready` · `sendPrompt` · `abort` · `newSession` · `selectSession` · `deleteSession` · `selectAgent` · `selectModel` · `setPlanMode` · `compactContext` · `respondPermission` · `refresh`
+**Webview → Host:** `ready` · `sendPrompt` · `abort` · `newSession` · `selectSession` · `deleteSession` · `selectAgent` · `selectModel` · `setPlanMode` · `compactContext` · `respondPermission` · `refresh` · `requestFileList` · `requestWorkspaceSymbols`
 
-**Host → Webview:** `state` (full UIState snapshot) · `messages` · `streamText` · `streamTool` · `streamIdle` · `permission` · `error`
+**Host → Webview:** `state` (full UIState snapshot) · `messages` · `streamText` · `streamTool` · `streamIdle` · `permission` · `error` · `fileList` · `workspaceSymbols` · `aborted`
+
+`sendPrompt`/`abort` carry an optional `turnId`; streaming replies echo it so
+the webview can discard stale events after stop or a queued follow-up.
 
 Host always pushes **complete UIState** (no partial diffs) — webview is a pure projection.
 

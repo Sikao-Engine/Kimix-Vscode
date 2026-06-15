@@ -1,11 +1,13 @@
 import { actions, useStore } from "../store";
 
 /**
- * Top control bar: agent picker, model picker, Plan Mode toggle, compact +
- * new-session buttons.
+ * Top control bar: agent picker, model picker, session picker, plan mode,
+ * reasoning collapse controls, compact + new-session buttons.
  */
 export function Toolbar() {
   const ui = useStore((s) => s.ui);
+  const collapseAll = useStore((s) => s.collapseAllReasoning);
+  const expandAll = useStore((s) => s.expandAllReasoning);
 
   const allModels = ui.providers.flatMap((p) =>
     p.models.map((m) => ({
@@ -18,6 +20,8 @@ export function Toolbar() {
     ? `${ui.selectedModel.providerID}::${ui.selectedModel.modelID}`
     : "";
 
+  const currentSession = ui.sessions.find((s) => s.id === ui.currentSessionId);
+
   return (
     <div className="toolbar">
       <select
@@ -25,6 +29,7 @@ export function Toolbar() {
         value={ui.selectedAgent ?? ""}
         onChange={(e) => actions.selectAgent(e.target.value)}
         title="Agent"
+        aria-label="Agent"
       >
         {ui.agents.length === 0 && <option value="">(no agents)</option>}
         {ui.agents.map((a) => (
@@ -42,6 +47,7 @@ export function Toolbar() {
           actions.selectModel(providerID, modelID);
         }}
         title="Model"
+        aria-label="Model"
       >
         {allModels.length === 0 && <option value="">(no models)</option>}
         {allModels.map((m) => (
@@ -54,6 +60,28 @@ export function Toolbar() {
         ))}
       </select>
 
+      <select
+        className="control session-picker"
+        value={ui.currentSessionId ?? ""}
+        onChange={(e) => {
+          const id = e.target.value;
+          if (id) {
+            actions.selectSession(id);
+          }
+        }}
+        title="Session"
+        aria-label="Session"
+      >
+        {ui.sessions.length === 0 && (
+          <option value="">(no sessions)</option>
+        )}
+        {ui.sessions.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.title || s.id.slice(0, 8)}
+          </option>
+        ))}
+      </select>
+
       <button
         className={`control toggle ${ui.planMode === "plan" ? "active" : ""}`}
         onClick={() =>
@@ -62,6 +90,24 @@ export function Toolbar() {
         title="Toggle Plan Mode"
       >
         {ui.planMode === "plan" ? "Plan" : "Build"}
+      </button>
+
+      <button
+        className="control"
+        onClick={() => collapseAll()}
+        title="Collapse all reasoning"
+        aria-label="Collapse all reasoning"
+      >
+        ⊟
+      </button>
+
+      <button
+        className="control"
+        onClick={() => expandAll()}
+        title="Expand all reasoning"
+        aria-label="Expand all reasoning"
+      >
+        ⊞
       </button>
 
       <button
@@ -79,6 +125,17 @@ export function Toolbar() {
       >
         New
       </button>
+
+      {currentSession && (
+        <button
+          className="control danger"
+          onClick={() => actions.deleteSession(currentSession.id)}
+          title="Delete current session"
+          aria-label="Delete current session"
+        >
+          ×
+        </button>
+      )}
 
       <div className="toolbar-spacer" />
 
