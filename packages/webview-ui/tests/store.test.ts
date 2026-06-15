@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { useStore } from "../src/store";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { useStore, actions } from "../src/store";
+import * as vscodeApi from "../src/vscodeApi";
 
 function resetStore() {
   useStore.setState({
@@ -17,6 +18,10 @@ function resetStore() {
     composerText: "",
     errorBanner: undefined,
   });
+}
+
+function initialPlanState() {
+  return { phase: "idle", attempt: 0, maxAttempts: 3 } as const;
 }
 
 describe("store pending queue", () => {
@@ -90,6 +95,81 @@ describe("store reasoning collapse", () => {
     expect(useStore.getState().globalReasoningCollapsed).toBe(true);
     useStore.getState().expandAllReasoning();
     expect(useStore.getState().globalReasoningCollapsed).toBe(false);
+  });
+});
+
+describe("store planState", () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it("updates ui.planState from host message", () => {
+    useStore.getState().applyHostMessage({
+      type: "planState",
+      state: { phase: "generating", attempt: 1, maxAttempts: 3 },
+    });
+    expect(useStore.getState().ui.planState.phase).toBe("generating");
+  });
+
+  it("clears busy when plan enters reviewing", () => {
+    useStore.setState({ busy: true });
+    useStore.getState().applyHostMessage({
+      type: "planState",
+      state: { phase: "reviewing", attempt: 1, maxAttempts: 3 },
+    });
+    expect(useStore.getState().busy).toBe(false);
+  });
+
+  it("clears stream on discard (reviewing -> idle)", () => {
+    useStore.setState({
+      ui: {
+        ...useStore.getState().ui,
+        planState: { phase: "reviewing", attempt: 1, maxAttempts: 3 },
+      },
+      stream: [{ id: "s1", kind: "text", text: "plan" }],
+      busy: false,
+    });
+    useStore.getState().applyHostMessage({
+      type: "planState",
+      state: initialPlanState(),
+    });
+    expect(useStore.getState().stream).toHaveLength(0);
+    expect(useStore.getState().activeTurnId).toBeUndefined();
+  });
+
+  it("generatePlan action posts the correct host message", () => {
+    const post = vi.spyOn(vscodeApi, "postToHost").mockImplementation(() => {});
+    actions.generatePlan("req", "turn-1");
+    expect(post).toHaveBeenCalledWith({
+      type: "generatePlan",
+      text: "req",
+      turnId: "turn-1",
+    });
+    expect(useStore.getState().busy).toBe(true);
+    expect(useStore.getState().activeTurnId).toBe("turn-1");
+    post.mockRestore();
+  });
+
+  it("revisePlan action posts the correct host message", () => {
+    const post = vi.spyOn(vscodeApi, "postToHost").mockImplementation(() => {});
+    actions.revisePlan("more tests", "turn-2");
+    expect(post).toHaveBeenCalledWith({
+      type: "revisePlan",
+      feedback: "more tests",
+      turnId: "turn-2",
+    });
+    expect(useStore.getState().busy).toBe(true);
+    expect(useStore.getState().activeTurnId).toBe("turn-2");
+    post.mockRestore();
+  });
+
+  it("implementPlan and discardPlan post the correct host messages", () => {
+    const post = vi.spyOn(vscodeApi, "postToHost").mockImplementation(() => {});
+    actions.implementPlan();
+    expect(post).toHaveBeenCalledWith({ type: "implementPlan" });
+    actions.discardPlan();
+    expect(post).toHaveBeenCalledWith({ type: "discardPlan" });
+    post.mockRestore();
   });
 });
 

@@ -48,11 +48,15 @@ The bundle is loaded as `dist/webview.js` resolved through
 ## Frontend architecture
 
 - **State**: a single Zustand store (`store.ts`). `applyHostMessage` reduces
-  incoming `HostToWebview` messages; `actions.*` are thin `postToHost` wrappers.
+  incoming `HostToWebview` messages; `actions.*` are thin `postToHost` wrappers
+  (plan actions also set local busy/stream state).
 - **Streaming**: `streamText` appends/merges into the current streaming bubble;
   `streamTool` upserts tool-call rows keyed by `callID`; `streamIdle` finalises
   the turn and requests a transcript `refresh`. Each streaming turn carries a
   `turnId`; stale events for an already-stopped turn are ignored.
+- **Plan Mode**: `planState` messages update `ui.planState`. While generating or
+  revising, the stream bubble is styled as a plan stream. When the phase becomes
+  `reviewing`, `PlanReview` renders **Implement / Revise / Discard** controls.
 - **Pending queue**: while the model is busy, new prompts are queued locally and
   shown in `PendingQueue` above the composer. The locked item is submitted
   automatically when the current turn ends.
@@ -75,6 +79,7 @@ The bundle is loaded as `dist/webview.js` resolved through
 | `Composer` | Auto-resizing textarea, @ mentions, attachment chips, Send/Stop |
 | `MentionPicker` | File/symbol search results for `@` mentions |
 | `PermissionPrompt` | Allow once / Always / Reject bar |
+| `PlanReview` | Implement / Revise / Discard affordance for generated plans |
 
 ## Build pipeline
 

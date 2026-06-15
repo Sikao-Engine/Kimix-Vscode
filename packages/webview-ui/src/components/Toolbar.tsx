@@ -1,4 +1,20 @@
 import { actions, useStore } from "../store";
+import type { PlanPhase } from "../protocol";
+
+function planPhaseLabel(phase: PlanPhase): string {
+  switch (phase) {
+    case "generating":
+      return "Generating plan…";
+    case "reviewing":
+      return "Review plan";
+    case "revising":
+      return "Revising plan…";
+    case "implementing":
+      return "Implementing plan…";
+    default:
+      return "";
+  }
+}
 
 /**
  * Top control bar: agent picker, model picker, session picker, plan mode,
@@ -90,6 +106,11 @@ export function Toolbar() {
         title="Toggle Plan Mode"
       >
         {ui.planMode === "plan" ? "Plan" : "Build"}
+        {ui.planState.phase !== "idle" && ui.planState.phase !== "implementing" && (
+          <span className="plan-dot" title={planPhaseLabel(ui.planState.phase)}>
+            ●
+          </span>
+        )}
       </button>
 
       <button

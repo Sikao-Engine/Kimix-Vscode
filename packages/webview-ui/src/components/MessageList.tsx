@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useStore } from "../store";
+import { actions, useStore } from "../store";
 import type { MessagePart } from "../protocol";
 import { ReasoningBlock } from "./ReasoningBlock";
 
@@ -53,6 +53,11 @@ export function MessageList() {
   const providers = useStore((s) => s.ui.providers);
   const showThinking = useStore((s) => s.ui.showThinking);
   const autoScroll = useStore((s) => s.ui.autoScroll);
+  const planState = useStore((s) => s.ui.planState);
+  const isPlanStream =
+    planState.phase === "generating" ||
+    planState.phase === "revising" ||
+    planState.phase === "reviewing";
 
   const endRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -135,10 +140,26 @@ export function MessageList() {
       })}
 
       {(stream.length > 0 || tools.length > 0 || busy) && (
-        <div className="msg msg-assistant streaming" aria-busy="true">
+        <div
+          className={`msg msg-assistant streaming ${isPlanStream ? "plan-stream" : ""}`}
+          aria-busy="true"
+        >
           <div className="msg-meta">
-            <span className="msg-role">assistant</span>
-            <span className="msg-model streaming-label">Generating…</span>
+            <span className="msg-role">{isPlanStream ? "plan" : "assistant"}</span>
+            {planState.phase === "reviewing" && planState.planFile && (
+              <button
+                className="plan-file-link"
+                onClick={() => actions.openPlanFile()}
+                title={planState.planFile.absolutePath}
+              >
+                {planState.planFile.path}
+              </button>
+            )}
+            {planState.phase !== "reviewing" && (
+              <span className="msg-model streaming-label">
+                {isPlanStream ? "Planning…" : "Generating…"}
+              </span>
+            )}
           </div>
           {stream.map((b) =>
             b.kind === "reasoning" ? (

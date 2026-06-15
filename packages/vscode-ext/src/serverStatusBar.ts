@@ -72,11 +72,14 @@ export class KimixServerStatusBar implements vscode.Disposable {
   }
 
   private update(status: ServerStatusInfo): void {
-    const { info } = status;
+    const { info, planPhase } = status;
+    const planSuffix = planPhase && planPhase !== "idle"
+      ? ` · ${planPhaseLabel(planPhase)}`
+      : "";
     switch (status.status) {
       case "running":
         this.item.text = `$(server) KimiX ${info?.port ?? ""}`;
-        this.item.tooltip = `KimiX server running on port ${info?.port ?? "unknown"}${info?.pid ? ` (PID ${info.pid})` : ""}${info?.reused ? " · reused" : ""}`;
+        this.item.tooltip = `KimiX server running on port ${info?.port ?? "unknown"}${info?.pid ? ` (PID ${info.pid})` : ""}${info?.reused ? " · reused" : ""}${planSuffix}`;
         this.item.backgroundColor = undefined;
         break;
       case "starting":
@@ -100,5 +103,20 @@ export class KimixServerStatusBar implements vscode.Disposable {
 
   dispose(): void {
     this.item.dispose();
+  }
+}
+
+function planPhaseLabel(phase: import("./controller/kimixController").ServerStatusInfo["planPhase"]): string {
+  switch (phase) {
+    case "generating":
+      return "planning";
+    case "reviewing":
+      return "review plan";
+    case "revising":
+      return "revising plan";
+    case "implementing":
+      return "implementing plan";
+    default:
+      return "";
   }
 }

@@ -459,3 +459,70 @@ html,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.plan-dot {
+  color: var(--vscode-testing-iconPassed, #89d185);
+  font-size: 8px;
+  margin-left: 4px;
+}
+
+.plan-stream {
+  border-left: 3px solid var(--vscode-testing-iconPassed, #89d185) !important;
+}
+
+.plan-review {
+  border-top: 1px solid var(--vscode-panel-border, #333);
+  border-bottom: 1px solid var(--vscode-panel-border, #333);
+  padding: 10px;
+  background: var(--vscode-editorWidget-background, #252526);
+}
+
+.plan-review-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.plan-review-title {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.plan-file-link {
+  background: transparent;
+  border: none;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.plan-file-link:hover {
+  color: var(--vscode-textLink-activeForeground, #3794ff);
+}
+
+.plan-feedback-input {
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #fff);
+  border: 1px solid var(--vscode-input-border, #333);
+  border-radius: 4px;
+  padding: 6px;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+
+.plan-review-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.plan-review-spacer {
+  flex: 1;
+}

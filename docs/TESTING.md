@@ -22,7 +22,8 @@ Suites (`packages/vscode-ext/tests/`):
 | `sessionManager.test.ts` | List refresh, stream→event emission, idle, lazy session creation (stubbed client). |
 | `serverManager.test.ts`  | PID reuse/adopt/spawn, foreign-server handling, stop cleanup. |
 | `serverProcess.test.ts`  | Spawn, health polling, graceful-then-forceful termination. |
-| `kimixController.test.ts`| Dispatch: `turnId` tracking, background abort, `requestFileList`, `requestWorkspaceSymbols` (mocked VS Code APIs). |
+| `kimixController.test.ts`| Dispatch: `turnId` tracking, background abort, `requestFileList`, `requestWorkspaceSymbols`, plan-mode dispatch (`generatePlan`, `implementPlan`, `discardPlan`) (mocked VS Code APIs). |
+| `planManager.test.ts`    | Plan file path resolution/safety, prompt building, state machine (`idle`→`generating`→`reviewing`→`implementing`→`idle`), revision cap, agent selection, implementation + review prompts (mocked client/session manager). |
 
 A `vscode` module mock lives at `tests/__mocks__/vscode.ts` and is aliased via
 `vitest.config.ts`.
@@ -37,7 +38,7 @@ Suite (`packages/webview-ui/tests/`):
 
 | File            | Covers                                                   |
 | --------------- | -------------------------------------------------------- |
-| `store.test.ts` | Pending queue enqueue/remove/edit/promote, reasoning collapse, `turnId` filtering, stop generation. |
+| `store.test.ts` | Pending queue enqueue/remove/edit/promote, reasoning collapse, `turnId` filtering, stop generation, `planState` handling, plan action message posting. |
 
 ## Static checks
 
@@ -90,8 +91,12 @@ Prerequisite: a working `opencode` (or configured `kimix.executable`) on `PATH`.
     Enter; it queues above the composer and is sent automatically when the turn
     ends. Queued items can be edited or deleted; deleting the locked item
     promotes the next one.
-11. **Plan Mode** — toggle Build/Plan; in Plan Mode prompts are prefixed with the
-    plan-only instruction.
+11. **Plan Mode** — toggle Build/Plan; type a requirement and click **Generate
+    Plan**. A plan file is written to `kimix.planFilePath`, opened in the editor,
+    and the webview shows **Implement / Revise / Discard**. Revise with feedback
+    regenerates the file; Implement switches to Build and sends the plan to the
+    regular session; Discard deletes the file. If `kimix.planModeEnabled` is
+    `false`, the legacy plan-only prompt decoration is used instead.
 12. **Compact** — `Compact` triggers summarization without errors.
 13. **Permissions** — when the server asks for a permission, the inline bar shows
     Allow once / Always / Reject and the choice is delivered.

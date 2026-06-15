@@ -1,10 +1,13 @@
 import * as vscode from "vscode";
 import { KimixConfig, readConfig } from "../config";
 import { Logger } from "../logger";
+import { PlanManager } from "../plan/planManager";
 import { OpencodeClient } from "../protocol/client";
 import {
   HostToWebview,
   PlanMode,
+  PlanPhase,
+  PlanState,
   ServerInfo,
   UIState,
   WebviewToHost,
@@ -23,6 +26,7 @@ export interface ServerStatusInfo {
   status: UIState["status"];
   info?: ServerInfo;
   error?: string;
+  planPhase?: PlanPhase;
 }
 
 /**
@@ -35,6 +39,7 @@ export class KimixController implements vscode.Disposable {
   private server: ServerLifecycleManager | undefined;
   private client: OpencodeClient | undefined;
   private sessions: SessionManager | undefined;
+  private planManager: PlanManager | undefined;
   private listeners = new Set<Listener>();
 
   private planMode: PlanMode = "build";
@@ -100,14 +105,48 @@ export class KimixController implements vscode.Disposable {
         this.pushState();
         break;
       case "sendPrompt": {
-        this.currentTurnId = msg.turnId;
-        await this.sessions?.sendPrompt(this.decoratePrompt(msg.text), {
-          agent: this.selectedAgent,
-          model: this.selectedModel,
-        });
+        if (this.planMode === "plan" && this.config.planModeEnabled) {
+          await this.planManager?.enterPlanning(msg.text, msg.turnId);
+        } else {
+          this.currentTurnId = msg.turnId;
+          await this.sessions?.sendPrompt(this.decoratePrompt(msg.text), {
+            agent: this.selectedAgent,
+            model: this.selectedModel,
+          });
+        }
+        break;
+      }
+      case "generatePlan": {
+        await this.planManager?.enterPlanning(msg.text, msg.turnId);
+        break;
+      }
+      case "revisePlan": {
+        await this.planManager?.revisePlan(msg.feedback, msg.turnId);
+        break;
+      }
+      case "implementPlan": {
+        await this.handleImplementPlan();
+        break;
+      }
+      case "discardPlan": {
+        await this.planManager?.discardPlan();
         break;
       }
       case "abort": {
+        if (
+          this.planManager &&
+          (this.planManager.getState().phase === "generating" ||
+            this.planManager.getState().phase === "revising")
+        ) {
+          const planTurnId = this.planManager.getCurrentTurnId();
+          this.planManager.abortPlanning();
+          this.post({
+            type: "aborted",
+            sessionId: "",
+            turnId: planTurnId,
+          });
+          break;
+        }
         const abortedTurnId = this.currentTurnId;
         // Fire the abort request in the background so the UI recovers instantly.
         this.sessions
@@ -168,6 +207,9 @@ export class KimixController implements vscode.Disposable {
         break;
       case "requestWorkspaceSymbols":
         await this.handleRequestWorkspaceSymbols(msg.query);
+        break;
+      case "openPlanFile":
+        await this.openPlanFileInEditor();
         break;
     }
   }
@@ -248,6 +290,27 @@ export class KimixController implements vscode.Disposable {
     this.pushState();
   }
 
+  async generatePlan(): Promise<void> {
+    const text = await vscode.window.showInputBox({
+      prompt: "Describe what to plan",
+      placeHolder: "e.g. Add a settings page to the webview",
+    });
+    if (!text) {
+      return;
+    }
+    await this.ensureStarted();
+    await this.planManager?.enterPlanning(text);
+  }
+
+  async implementPlan(): Promise<void> {
+    await this.ensureStarted();
+    await this.handleImplementPlan();
+  }
+
+  async discardPlan(): Promise<void> {
+    await this.planManager?.discardPlan();
+  }
+
   async compactContext(): Promise<void> {
     if (this.selectedModel) {
       await this.sessions?.compact(this.selectedModel);
@@ -275,6 +338,14 @@ export class KimixController implements vscode.Disposable {
 
   onConfigChanged(config: KimixConfig): void {
     this.config = config;
+    if (this.planManager) {
+      this.planManager.updateConfig({
+        planFilePath: config.planFilePath,
+        planAgent: config.planAgent,
+        planMaxAttempts: config.planMaxAttempts,
+        openPlanFileAfterGeneration: config.openPlanFileAfterGeneration,
+      });
+    }
   }
 
   getServerStatus(): ServerStatusInfo {
@@ -282,6 +353,7 @@ export class KimixController implements vscode.Disposable {
       status: this.serverStatus,
       info: this.server?.info,
       error: this.serverError,
+      planPhase: this.planManager?.getState().phase,
     };
   }
 
@@ -382,6 +454,18 @@ export class KimixController implements vscode.Disposable {
     this.sessions = new SessionManager(this.client);
     this.wireSessionEvents(this.sessions);
 
+    this.planManager = new PlanManager(
+      this.workspaceRoot,
+      this.sessions,
+      {
+        planFilePath: this.config.planFilePath,
+        planAgent: this.config.planAgent,
+        planMaxAttempts: this.config.planMaxAttempts,
+        openPlanFileAfterGeneration: this.config.openPlanFileAfterGeneration,
+      },
+    );
+    this.wirePlanEvents(this.planManager);
+
     await this.loadInitialData();
     this.serverStatus = "running";
     this.pushState();
@@ -447,6 +531,7 @@ export class KimixController implements vscode.Disposable {
     ]);
     this.agents = agents;
     this.providers = providers;
+    this.planManager?.setAgents(agents);
 
     if (!this.selectedAgent && agents.length > 0) {
       this.selectedAgent = agents[0].name;
@@ -499,6 +584,7 @@ export class KimixController implements vscode.Disposable {
       selectedAgent: this.selectedAgent,
       selectedModel: this.selectedModel,
       planMode: this.planMode,
+      planState: this.planManager?.getState() ?? idlePlanState(),
       showThinking: this.config.showThinking,
       autoScroll: this.config.autoScroll,
       enableMentions: this.config.enableMentions,
@@ -508,9 +594,63 @@ export class KimixController implements vscode.Disposable {
   }
 
   async dispose(): Promise<void> {
+    this.planManager?.dispose();
     await this.server?.dispose();
     this.resetAfterStop();
     this.listeners.clear();
     this._onDidChangeServerStatus.dispose();
   }
+
+  // ── Plan mode helpers ────────────────────────────────────────────
+
+  private wirePlanEvents(pm: PlanManager): void {
+    pm.on("state", (state) => {
+      this.post({ type: "planState", state });
+      this._onDidChangeServerStatus.fire(this.getServerStatus());
+    });
+    pm.on("text", (delta, full, kind, turnId) =>
+      this.post({
+        type: "streamText",
+        sessionId: pm.getState().planFile?.absolutePath ?? "plan",
+        turnId,
+        kind,
+        delta,
+        full,
+      }),
+    );
+    pm.on("idle", () => {
+      if (this.config.openPlanFileAfterGeneration) {
+        this.openPlanFileInEditor().catch((err) =>
+          Logger.error("[controller] open plan file failed", String(err)),
+        );
+      }
+    });
+    pm.on("error", (message) => this.post({ type: "error", message }));
+    pm.on("aborted", (turnId) =>
+      this.post({ type: "aborted", sessionId: "", turnId }),
+    );
+  }
+
+  private async handleImplementPlan(): Promise<void> {
+    this.planMode = "build";
+    this.pushState();
+    await this.planManager?.implementPlan(this.selectedAgent, this.selectedModel);
+  }
+
+  private async openPlanFileInEditor(): Promise<void> {
+    const abs = this.planManager?.getState().planFile?.absolutePath;
+    if (!abs) {
+      return;
+    }
+    const doc = await vscode.workspace.openTextDocument(abs);
+    await vscode.window.showTextDocument(doc, { preview: false });
+  }
+}
+
+function idlePlanState(): PlanState {
+  return {
+    phase: "idle",
+    attempt: 0,
+    maxAttempts: 3,
+  };
 }

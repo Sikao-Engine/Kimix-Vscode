@@ -47,8 +47,22 @@ selectSession(id):
 
 ## Plan Mode & context compaction
 
-- **Plan Mode** is a host-side flag. When enabled, `KimixController.decoratePrompt`
-  prefixes the user text with a plan-only instruction before sending. No server
-  feature is required, so it works against any opencode build.
+- **Plan Mode** is orchestrated by `PlanManager` (`src/plan/planManager.ts`).
+  When the full workflow is enabled (`kimix.planModeEnabled`, default `true`):
+  - A dedicated planning session is created (or the prompt is decorated if no
+    planner agent is available).
+  - The planner streams to an in-memory buffer; on `session-idle` the buffer is
+    flushed to `kimix.planFilePath` (default `.kimix/plan.md`).
+  - The host pushes `planState({ phase: "reviewing", planFile })` and opens the
+    plan file in the editor.
+  - The webview shows **Implement / Revise / Discard** affordances.
+  - **Implement** switches `planMode` back to `build`, sends the plan content to
+    the regular worker session, and follows up with a review prompt.
+  - **Revise** regenerates the plan file from user feedback (capped by
+    `kimix.planMaxAttempts`).
+  - **Discard** deletes the plan file and resets the planning state.
+- If `kimix.planModeEnabled` is `false`, the legacy fallback is used:
+  `KimixController.decoratePrompt` prefixes the user text with a plan-only
+  instruction before sending it through the normal chat session.
 - **Compact** calls `POST /session/:id/summarize` with the currently selected
   model, triggering server-side AI compaction of the conversation context.

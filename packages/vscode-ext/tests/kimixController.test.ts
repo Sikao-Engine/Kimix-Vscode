@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as vscode from "vscode";
 import { KimixController } from "../src/controller/kimixController";
-import type { HostToWebview, WebviewToHost } from "../src/protocol/messages";
+import type { HostToWebview, PlanState, WebviewToHost } from "../src/protocol/messages";
 
 function createController() {
   return new KimixController("/workspace", "/tmp/pid.json");
@@ -59,6 +59,106 @@ describe("KimixController dispatch", () => {
     expect(sessions.sendPrompt).toHaveBeenCalled();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((controller as any).currentTurnId).toBe("turn-1");
+  });
+
+  it("redirects sendPrompt to generatePlan when in plan mode", async () => {
+    const planManager = {
+      enterPlanning: vi.fn(async () => {}),
+      getState: () => ({ phase: "idle" } as PlanState),
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).planMode = "plan";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).config = { planModeEnabled: true };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).planManager = planManager;
+
+    await controller.handleMessage({
+      type: "sendPrompt",
+      text: "plan this",
+      turnId: "turn-p1",
+    } as WebviewToHost);
+
+    expect(planManager.enterPlanning).toHaveBeenCalledWith("plan this", "turn-p1");
+  });
+
+  it("uses fallback prompt decoration when plan mode is disabled", async () => {
+    const sessions = {
+      sendPrompt: vi.fn(async () => {}),
+      currentSessionId: "s1",
+      sessions: [{ id: "s1" }],
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).sessions = sessions;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).planMode = "plan";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).config = { planModeEnabled: false };
+
+    await controller.handleMessage({
+      type: "sendPrompt",
+      text: "plan this",
+      turnId: "turn-p2",
+    } as WebviewToHost);
+
+    expect(sessions.sendPrompt).toHaveBeenCalledWith(
+      expect.stringContaining("[Plan Mode:"),
+      expect.any(Object),
+    );
+  });
+
+  it("forwards implementPlan and switches to build mode", async () => {
+    const planManager = {
+      implementPlan: vi.fn(async () => {}),
+      getState: () => ({ phase: "reviewing" } as PlanState),
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).planManager = planManager;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).planMode = "plan";
+
+    await controller.handleMessage({ type: "implementPlan" } as WebviewToHost);
+
+    expect(planManager.implementPlan).toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((controller as any).planMode).toBe("build");
+    const state = messages.find((m) => m.type === "state");
+    expect(state).toMatchObject({ state: expect.objectContaining({ planMode: "build" }) });
+  });
+
+  it("forwards discardPlan", async () => {
+    const planManager = {
+      discardPlan: vi.fn(async () => {}),
+      getState: () => ({ phase: "reviewing" } as PlanState),
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).planManager = planManager;
+
+    await controller.handleMessage({ type: "discardPlan" } as WebviewToHost);
+
+    expect(planManager.discardPlan).toHaveBeenCalled();
+  });
+
+  it("includes planState in pushed UIState", () => {
+    const planManager = {
+      getState: () =>
+        ({
+          phase: "reviewing",
+          attempt: 1,
+          maxAttempts: 3,
+        }) as PlanState,
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).planManager = planManager;
+
+    controller.pushState();
+
+    const state = messages.find((m) => m.type === "state");
+    expect(state).toMatchObject({
+      state: expect.objectContaining({
+        planState: { phase: "reviewing", attempt: 1, maxAttempts: 3 },
+      }),
+    });
   });
 
   it("fires abort in the background and posts aborted immediately", async () => {

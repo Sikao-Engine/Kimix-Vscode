@@ -3,6 +3,7 @@ import { Toolbar } from "./components/Toolbar";
 import { MessageList } from "./components/MessageList";
 import { Composer } from "./components/Composer";
 import { PermissionPrompt } from "./components/PermissionPrompt";
+import { PlanReview } from "./components/PlanReview";
 import { PendingQueue } from "./components/PendingQueue";
 import { useStore } from "./store";
 import { onHostMessage, postToHost } from "./vscodeApi";
@@ -33,6 +34,7 @@ export function App() {
       <div className="body">
         <div className="chat">
           <MessageList />
+          <PlanReview />
           <PendingQueue />
           <PermissionPrompt />
           <Composer />

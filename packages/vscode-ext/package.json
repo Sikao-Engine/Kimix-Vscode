@@ -73,6 +73,31 @@
           "type": "boolean",
           "default": true,
           "description": "Enable @ file/symbol mentions in the composer"
+        },
+        "kimix.planModeEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the full plan-mode workflow (planner agent + review + implement)"
+        },
+        "kimix.planFilePath": {
+          "type": "string",
+          "default": ".kimix/plan.md",
+          "description": "Relative path where generated plans are saved"
+        },
+        "kimix.planAgent": {
+          "type": "string",
+          "default": "",
+          "description": "Agent name used for planning. Empty falls back to prompt decoration."
+        },
+        "kimix.planMaxAttempts": {
+          "type": "number",
+          "default": 3,
+          "description": "Maximum plan generation/revision attempts"
+        },
+        "kimix.openPlanFileAfterGeneration": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the generated plan file in the editor after planning completes"
         }
       }
     },
@@ -90,6 +115,18 @@
       {
         "command": "kimix.togglePlanMode",
         "title": "KimiX: Toggle Plan Mode"
+      },
+      {
+        "command": "kimix.generatePlan",
+        "title": "KimiX: Generate Plan"
+      },
+      {
+        "command": "kimix.implementPlan",
+        "title": "KimiX: Implement Plan"
+      },
+      {
+        "command": "kimix.discardPlan",
+        "title": "KimiX: Discard Plan"
       },
       {
         "command": "kimix.compactContext",

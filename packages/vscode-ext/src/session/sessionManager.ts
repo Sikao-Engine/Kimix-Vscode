@@ -46,6 +46,10 @@ export class SessionManager extends EventEmitter {
     this.client = client;
   }
 
+  get clientInstance(): OpencodeClient {
+    return this.client;
+  }
+
   get sessions(): Session[] {
     return this._sessions;
   }
@@ -60,10 +64,15 @@ export class SessionManager extends EventEmitter {
     return this._sessions;
   }
 
-  async newSession(title?: string): Promise<Session> {
+  async createSession(title?: string): Promise<Session> {
     const session = await this.client.createSession(title);
     this._sessions = [session, ...this._sessions];
     this.emit("sessionsChanged");
+    return session;
+  }
+
+  async newSession(title?: string): Promise<Session> {
+    const session = await this.createSession(title);
     await this.selectSession(session.id);
     return session;
   }

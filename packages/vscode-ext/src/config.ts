@@ -8,6 +8,11 @@ export interface KimixConfig {
   showThinking: boolean;
   autoScroll: boolean;
   enableMentions: boolean;
+  planModeEnabled: boolean;
+  planFilePath: string;
+  planAgent: string;
+  planMaxAttempts: number;
+  openPlanFileAfterGeneration: boolean;
 }
 
 const SECTION = "kimix";
@@ -26,6 +31,11 @@ export function readConfig(): KimixConfig {
     showThinking: c.get<boolean>("showThinking", true),
     autoScroll: c.get<boolean>("autoScroll", true),
     enableMentions: c.get<boolean>("enableMentions", true),
+    planModeEnabled: c.get<boolean>("planModeEnabled", true),
+    planFilePath: c.get<string>("planFilePath", ".kimix/plan.md"),
+    planAgent: c.get<string>("planAgent", ""),
+    planMaxAttempts: c.get<number>("planMaxAttempts", 3),
+    openPlanFileAfterGeneration: c.get<boolean>("openPlanFileAfterGeneration", true),
   };
 }
 

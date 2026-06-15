@@ -120,20 +120,52 @@ Defined in `src/protocol/messages.ts` (host) and mirrored in
 ### Webview → Host
 
 `ready` · `startServer` · `stopServer` · `restartServer` · `sendPrompt` ·
-`abort` · `newSession` · `selectSession` · `deleteSession` · `selectAgent` ·
-`selectModel` · `setPlanMode` · `compactContext` · `respondPermission` ·
-`refresh` · `requestFileList` · `requestWorkspaceSymbols`
+`generatePlan` · `revisePlan` · `implementPlan` · `discardPlan` · `abort` ·
+`newSession` · `selectSession` · `deleteSession` · `selectAgent` · `selectModel`
+· `setPlanMode` · `compactContext` · `respondPermission` · `refresh` ·
+`requestFileList` · `requestWorkspaceSymbols` · `openPlanFile`
 
-`sendPrompt` and `abort` carry an optional `turnId`. The webview generates a
-fresh `turnId` per prompt; the host echoes it on all streaming events for that
-turn so the UI can ignore stale traffic after the user clicks **Stop** or sends
-a follow-up prompt.
+`sendPrompt`, `generatePlan`, `revisePlan` and `abort` carry an optional
+`turnId`. The webview generates a fresh `turnId` per prompt; the host echoes it
+on all streaming events for that turn so the UI can ignore stale traffic after
+the user clicks **Stop** or sends a follow-up prompt.
+
+### Plan Mode messages
+
+Plan Mode adds dedicated messages and a `PlanState` snapshot inside `UIState`:
+
+```ts
+type PlanPhase = "idle" | "generating" | "reviewing" | "revising" | "implementing";
+
+interface PlanFileInfo {
+  path: string;        // workspace-relative
+  absolutePath: string;
+  exists: boolean;
+}
+
+interface PlanState {
+  phase: PlanPhase;
+  planFile?: PlanFileInfo;
+  requirement?: string;
+  revisionPrompt?: string;
+  attempt: number;
+  maxAttempts: number;
+  error?: string;
+}
+```
+
+- `generatePlan` / `revisePlan` start/restart planning and stream the response
+  as `streamText` events.
+- `implementPlan` sends the plan to the regular worker session and switches the
+  mode back to `build`.
+- `discardPlan` deletes the plan file and resets `PlanState`.
+- `planState` is pushed whenever the planning phase changes.
 
 ### Host → Webview
 
-`state` (full `UIState` snapshot) · `messages` · `streamText` · `streamTool` ·
-`streamIdle` · `permission` · `error` · `fileList` · `workspaceSymbols` ·
-`aborted`
+`state` (full `UIState` snapshot, now includes `planState`) · `planState` ·
+`messages` · `streamText` · `streamTool` · `streamIdle` · `permission` · `error`
+· `fileList` · `workspaceSymbols` · `aborted`
 
 `streamText`, `streamTool`, `streamIdle` and `aborted` include the optional
 `turnId`. The host pushes a complete `UIState` on every meaningful change (no

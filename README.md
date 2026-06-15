@@ -11,7 +11,9 @@ requirement is a configurable executable that supports
 ## Features
 
 - **Model selection** and **Agent selection** from the server's catalogue
-- **Plan Mode** toggle (plan-only prompt decoration)
+- **Plan Mode** — generate a persisted plan file with a dedicated planner agent,
+  review it, then implement with one click (falls back to prompt decoration when
+  no planner agent is available)
 - **Compact context** button (server-side summarization)
 - **Session management** — create / switch / delete, live transcript, now via a
   compact toolbar dropdown instead of a fixed side rail

@@ -20,6 +20,29 @@ import type {
 
 export type PlanMode = "build" | "plan";
 
+export type PlanPhase =
+  | "idle"
+  | "generating"
+  | "reviewing"
+  | "revising"
+  | "implementing";
+
+export interface PlanFileInfo {
+  path: string;
+  absolutePath: string;
+  exists: boolean;
+}
+
+export interface PlanState {
+  phase: PlanPhase;
+  planFile?: PlanFileInfo;
+  requirement?: string;
+  revisionPrompt?: string;
+  attempt: number;
+  maxAttempts: number;
+  error?: string;
+}
+
 export interface ServerInfo {
   port?: number;
   pid?: number;
@@ -38,6 +61,7 @@ export interface UIState {
   selectedAgent?: string;
   selectedModel?: { providerID: string; modelID: string };
   planMode: PlanMode;
+  planState: PlanState;
   showThinking: boolean;
   autoScroll: boolean;
   enableMentions: boolean;
@@ -58,16 +82,22 @@ export type WebviewToHost =
   | { type: "selectAgent"; agent: string }
   | { type: "selectModel"; providerID: string; modelID: string }
   | { type: "setPlanMode"; mode: PlanMode }
+  | { type: "generatePlan"; text: string; turnId?: string }
+  | { type: "revisePlan"; feedback: string; turnId?: string }
+  | { type: "implementPlan" }
+  | { type: "discardPlan" }
   | { type: "compactContext" }
   | { type: "respondPermission"; permissionId: string; reply: PermissionReply }
   | { type: "refresh" }
   | { type: "requestFileList"; query?: string }
-  | { type: "requestWorkspaceSymbols"; query: string };
+  | { type: "requestWorkspaceSymbols"; query: string }
+  | { type: "openPlanFile" };
 
 // ── Host → Webview ──────────────────────────────────────────────────
 
 export type HostToWebview =
   | { type: "state"; state: UIState }
+  | { type: "planState"; state: PlanState }
   | { type: "messages"; sessionId: string; messages: MessageWithParts[] }
   | {
       type: "streamText";

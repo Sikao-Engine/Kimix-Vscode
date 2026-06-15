@@ -61,6 +61,9 @@ function registerCommands(
 
   cmd("kimix.newConversation", () => controller.newConversation());
   cmd("kimix.togglePlanMode", () => controller.togglePlanMode());
+  cmd("kimix.generatePlan", () => controller.generatePlan());
+  cmd("kimix.implementPlan", () => controller.implementPlan());
+  cmd("kimix.discardPlan", () => controller.discardPlan());
   cmd("kimix.compactContext", () => controller.compactContext());
   cmd("kimix.restart", () => controller.restart());
   cmd("kimix.showLogs", () => Logger.show());

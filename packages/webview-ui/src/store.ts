@@ -99,6 +99,11 @@ const initialUI: UIState = {
   agents: [],
   providers: [],
   planMode: "build",
+  planState: {
+    phase: "idle",
+    attempt: 0,
+    maxAttempts: 3,
+  },
   showThinking: true,
   autoScroll: true,
   enableMentions: true,
@@ -134,6 +139,32 @@ export const useStore = create<StoreState>((set, get) => ({
       case "state":
         set({ ui: msg.state });
         break;
+      case "planState": {
+        const prev = get().ui.planState.phase;
+        const next = msg.state.phase;
+        const updates: Partial<StoreState> = {
+          ui: { ...get().ui, planState: msg.state },
+        };
+        if (next === "reviewing") {
+          updates.busy = false;
+        } else if (next === "idle") {
+          updates.busy = false;
+          if (
+            prev === "reviewing" ||
+            prev === "generating" ||
+            prev === "revising"
+          ) {
+            updates.stream = [];
+            updates.tools = [];
+            updates.activeTurnId = undefined;
+          }
+        } else if (next === "implementing") {
+          updates.stream = [];
+          updates.tools = [];
+        }
+        set(updates);
+        break;
+      }
       case "messages":
         set({ messages: msg.messages, stream: [], tools: [], busy: false });
         break;
@@ -381,6 +412,30 @@ function formatRefs(text: string, attachments: FileRef[]): string {
 export const actions = {
   sendPrompt: (text: string, turnId?: string) =>
     postToHost({ type: "sendPrompt", text, turnId }),
+  generatePlan: (text: string, turnId?: string) => {
+    useStore.setState({
+      busy: true,
+      activeTurnId: turnId,
+      stream: [],
+      tools: [],
+    });
+    postToHost({ type: "generatePlan", text, turnId });
+  },
+  revisePlan: (feedback: string, turnId?: string) => {
+    useStore.setState({
+      busy: true,
+      activeTurnId: turnId,
+      stream: [],
+      tools: [],
+    });
+    postToHost({ type: "revisePlan", feedback, turnId });
+  },
+  implementPlan: () => {
+    useStore.setState({ stream: [], tools: [] });
+    postToHost({ type: "implementPlan" });
+  },
+  discardPlan: () => postToHost({ type: "discardPlan" }),
+  openPlanFile: () => postToHost({ type: "openPlanFile" }),
   abort: (turnId?: string) => postToHost({ type: "abort", turnId }),
   startServer: () => postToHost({ type: "startServer" }),
   stopServer: () => postToHost({ type: "stopServer" }),

@@ -12,6 +12,8 @@ export function Composer() {
 
   const busy = useStore((s) => s.busy);
   const status = useStore((s) => s.ui.status);
+  const planMode = useStore((s) => s.ui.planMode);
+  const planPhase = useStore((s) => s.ui.planState.phase);
   const attachments = useStore((s) => s.attachments);
   const insertAttachment = useStore((s) => s.insertFileRef);
   const removeAttachment = useStore((s) => s.removeAttachment);
@@ -26,11 +28,18 @@ export function Composer() {
     }
     const finalText = value || " ";
 
+    const turnId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const promptWithRefs = formatRefs(finalText, attachments);
+
     if (busy) {
+      if (planMode === "plan") {
+        // Do not queue plan prompts; ignore while busy.
+        return;
+      }
       enqueuePrompt(finalText);
+    } else if (planMode === "plan") {
+      actions.generatePlan(promptWithRefs, turnId);
     } else {
-      const turnId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      const promptWithRefs = formatRefs(finalText, attachments);
       actions.sendPrompt(promptWithRefs, turnId);
     }
 
@@ -110,6 +119,8 @@ export function Composer() {
   }, [text]);
 
   const canSend = status === "running";
+  const isReviewing = planPhase === "reviewing";
+  const isPlanning = planMode === "plan";
 
   return (
     <div className="composer">
@@ -136,11 +147,15 @@ export function Composer() {
           className="composer-input"
           value={text}
           placeholder={
-            canSend
-              ? "Ask anything… (type @ to reference a file)"
-              : "Server not ready"
+            isReviewing
+              ? "Review the plan above"
+              : canSend
+                ? isPlanning
+                  ? "Describe what to plan… (type @ to reference a file)"
+                  : "Ask anything… (type @ to reference a file)"
+                : "Server not ready"
           }
-          disabled={!canSend}
+          disabled={!canSend || isReviewing}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           rows={1}
@@ -164,9 +179,13 @@ export function Composer() {
           <button
             className="control primary"
             onClick={send}
-            disabled={!canSend || (!text.trim() && attachments.length === 0)}
+            disabled={
+              !canSend ||
+              isReviewing ||
+              (!text.trim() && attachments.length === 0)
+            }
           >
-            Send
+            {isPlanning && !isReviewing ? "Generate Plan" : "Send"}
           </button>
         )}
       </div>

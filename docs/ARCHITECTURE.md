@@ -25,9 +25,12 @@ packages/
         serverManager.ts      Lifecycle manager: PID file, reuse, exit safety net
       serverStatusBar.ts      Status-bar item + quick-pick server menu
       session/
-        sessionManager.ts     Active-session stream + session list
+        sessionManager.ts     # Active-session stream + session list
+      plan/
+        planManager.ts        # Plan-mode orchestrator (no vscode import)
+        planPrompts.ts        # Pure prompt templates
       controller/
-        kimixController.ts    Orchestrator + webview message bridge
+        kimixController.ts    # Orchestrator + webview message bridge
       webview/
         webviewManager.ts     Sidebar provider + tab panel + HTML/CSP
     tests/                    Vitest unit tests (+ vscode mock)
@@ -50,8 +53,9 @@ extension.ts
   │    │    └─ server/ServerProcess     (low-level child process)
   │    ├─ protocol/OpencodeClient       (HTTP + SSE)        ← no vscode import
   │    │    └─ protocol/sseParser       (pure functions)    ← no vscode import
-  │    └─ session/SessionManager        (stream orchestration) ← no vscode import
-  ├─ serverStatusBar                    (status-bar UI)
+  │    ├─ session/SessionManager        (stream orchestration) ← no vscode import
+  │    └─ plan/PlanManager              (plan file + review loop) ← no vscode import
+  ├─ serverStatusBar                    (status-bar UI; shows plan phase when active)
   └─ webview/webviewManager → controller (message bridge)
 ```
 
@@ -77,6 +81,27 @@ Server streams over GET /event (global SSE)
   → SessionManager emits text/tool/idle/permission
   → KimixController.post (attaches turnId) → webview.postMessage
   → store.applyHostMessage → React re-render
+```
+
+### Plan Mode
+
+```
+User toggles Plan Mode → types requirement → Composer.send()
+  → postToHost({ generatePlan, text, turnId })
+  → KimixController.dispatch
+  → PlanManager.enterPlanning(requirement)
+       → resolve & delete stale plan file
+       → create/select planning session via OpencodeClient
+       → send planner prompt (agent or decorated fallback)
+       → consume planning SSE stream
+       → buffer text; on idle flush to plan file
+       → emit planState({ phase: "reviewing", planFile })
+  → host opens plan file in editor (if enabled)
+  → webview renders PlanReview: Implement / Revise / Discard
+
+Implement  → PlanManager.implementPlan() → send plan to regular session → follow-up review prompt
+Revise     → PlanManager.revisePlan(feedback) → regenerate plan file
+Discard    → PlanManager.discardPlan() → delete plan file → phase idle
 ```
 
 ### Pending queue & turn id
@@ -175,3 +200,8 @@ pnpm --filter kimix-vscode-ext run package    # produce .vsix
 | `kimix.showThinking`         | `true`        | Show reasoning content in the UI          |
 | `kimix.autoScroll`           | `true`        | Auto-scroll during streaming              |
 | `kimix.enableMentions`       | `true`        | Enable @ file/symbol mentions             |
+| `kimix.planModeEnabled`      | `true`        | Enable full plan-mode workflow            |
+| `kimix.planFilePath`         | `.kimix/plan.md` | Relative path for generated plans      |
+| `kimix.planAgent`            | `""`          | Agent name for planning; empty = auto-detect/fallback |
+| `kimix.planMaxAttempts`      | `3`           | Max plan generation/revision attempts     |
+| `kimix.openPlanFileAfterGeneration` | `true` | Open plan file in editor after planning |

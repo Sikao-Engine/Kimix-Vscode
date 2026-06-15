@@ -8,7 +8,7 @@ Orientation for AI agents & new developers: project structure, architecture, lay
 
 A **VS Code extension** for AI-assisted, in-repo development. Drives an **opencode-compatible** server over HTTP + SSE. **No API-key dependency** — only a configurable executable (`kimix.executable`, default `opencode`).
 
-**Features:** model/agent selection from server catalogue · Plan Mode toggle · context compaction · session management · streaming text/reasoning/tool calls over SSE with auto-reconnect · inline permission prompts · sidebar + editor tab sharing one state.
+**Features:** model/agent selection from server catalogue · full Plan Mode (planner agent, persisted plan file, review loop, one-click implement) · context compaction · session management · streaming text/reasoning/tool calls over SSE with auto-reconnect · inline permission prompts · sidebar + editor tab sharing one state.
 
 ---
 
@@ -55,6 +55,9 @@ packages/vscode-ext/
     │   └── serverManager.ts      # Lifecycle manager: PID file, reuse, own, exit safety net
     ├── session/
     │   └── sessionManager.ts     # Active stream + session list
+    ├── plan/
+    │   ├── planManager.ts        # Plan-mode orchestrator (no vscode import)
+    │   └── planPrompts.ts        # Pure prompt templates
     └── webview/
         └── webviewManager.ts     # Sidebar provider + tab panel + HTML/CSP
 ```
@@ -69,7 +72,8 @@ packages/vscode-ext/
          ├─ server/ServerProcess
          ├─ protocol/OpencodeClient  ← no vscode
          │    └─ sseParser           ← no vscode (pure functions)
-         └─ session/SessionManager   ← no vscode
+         ├─ session/SessionManager   ← no vscode
+         └─ plan/PlanManager         ← no vscode
     └─ webview/webviewManager → controller (message bridge)
   ```
 
@@ -110,7 +114,7 @@ packages/webview-ui/
         └── PermissionPrompt.tsx # Allow once / Always / Reject bar
 ```
 
-**Architecture:** single Zustand store. `applyHostMessage` reduces `HostToWebview` messages; `actions.*` are thin `postToHost` wrappers. `streamText` merges into current bubble; `streamTool` upserts tool rows by `callID`; `streamIdle` triggers `refresh`. Transport via `vscodeApi.ts` (typed `postToHost`/`onHostMessage`). **Webview never talks to server directly** — all through controller's typed bridge.
+**Architecture:** single Zustand store. `applyHostMessage` reduces `HostToWebview` messages; `actions.*` are thin `postToHost` wrappers. `streamText` merges into current bubble; `streamTool` upserts tool rows by `callID`; `streamIdle` triggers `refresh`. Transport via `vscodeApi.ts` (typed `postToHost`/`onHostMessage`). **Webview never talks to server directly** — all through controller's typed bridge. The status bar shows the active plan phase when Plan Mode is in progress.
 
 ---
 
@@ -178,6 +182,11 @@ Process-exit safety: process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP') → kill() +
 | `kimix.showThinking` | `true` | Show reasoning in UI |
 | `kimix.autoScroll` | `true` | Auto-scroll during streaming |
 | `kimix.enableMentions` | `true` | Enable @ file/symbol mentions |
+| `kimix.planModeEnabled` | `true` | Enable full plan-mode workflow |
+| `kimix.planFilePath` | `.kimix/plan.md` | Relative path for generated plans |
+| `kimix.planAgent` | `""` | Agent name for planning; empty = auto-detect/fallback |
+| `kimix.planMaxAttempts` | `3` | Max plan generation/revision attempts |
+| `kimix.openPlanFileAfterGeneration` | `true` | Open plan file in editor after planning |
 
 ---
 
@@ -185,9 +194,9 @@ Process-exit safety: process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP') → kill() +
 
 Mirrored files — **keep in sync**: `vscode-ext/src/protocol/messages.ts` ⇄ `webview-ui/src/protocol.ts`
 
-**Webview → Host:** `ready` · `sendPrompt` · `abort` · `newSession` · `selectSession` · `deleteSession` · `selectAgent` · `selectModel` · `setPlanMode` · `compactContext` · `respondPermission` · `refresh` · `requestFileList` · `requestWorkspaceSymbols`
+**Webview → Host:** `ready` · `sendPrompt` · `generatePlan` · `revisePlan` · `implementPlan` · `discardPlan` · `abort` · `newSession` · `selectSession` · `deleteSession` · `selectAgent` · `selectModel` · `setPlanMode` · `compactContext` · `respondPermission` · `refresh` · `requestFileList` · `requestWorkspaceSymbols` · `openPlanFile`
 
-**Host → Webview:** `state` (full UIState snapshot) · `messages` · `streamText` · `streamTool` · `streamIdle` · `permission` · `error` · `fileList` · `workspaceSymbols` · `aborted`
+**Host → Webview:** `state` (full UIState snapshot incl. `planState`) · `planState` · `messages` · `streamText` · `streamTool` · `streamIdle` · `permission` · `error` · `fileList` · `workspaceSymbols` · `aborted`
 
 `sendPrompt`/`abort` carry an optional `turnId`; streaming replies echo it so
 the webview can discard stale events after stop or a queued follow-up.
@@ -234,7 +243,7 @@ Client reconnects up to 5× with linear backoff, yields `reconnected` event befo
 **Behaviours:**
 - Switching sessions tears down old stream, starts new one.
 - `sendPrompt` with no active session auto-creates one (lazy).
-- **Plan Mode** is host-side only — `KimixController.decoratePrompt` prefixes text with plan instruction. No server feature needed.
+- **Plan Mode** is orchestrated host-side by `PlanManager`. It creates a dedicated planning session (or falls back to prompt decoration), streams the plan to a workspace plan file, and exposes **Implement / Revise / Discard** affordances. On **Implement** the plan is sent to the regular worker session and the mode switches back to build.
 - **Compact** calls `POST /session/:id/summarize` with selected model.
 
 ---
