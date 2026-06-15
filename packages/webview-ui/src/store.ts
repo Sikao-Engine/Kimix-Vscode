@@ -121,6 +121,9 @@ export const useStore = create<StoreState>((set, get) => ({
 export const actions = {
   sendPrompt: (text: string) => postToHost({ type: "sendPrompt", text }),
   abort: () => postToHost({ type: "abort" }),
+  startServer: () => postToHost({ type: "startServer" }),
+  stopServer: () => postToHost({ type: "stopServer" }),
+  restartServer: () => postToHost({ type: "restartServer" }),
   newSession: () => postToHost({ type: "newSession" }),
   selectSession: (sessionId: string) =>
     postToHost({ type: "selectSession", sessionId }),

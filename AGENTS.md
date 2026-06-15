@@ -51,7 +51,8 @@ packages/vscode-ext/
     │   ├── client.ts             # HTTP+SSE client (native fetch, no vscode)
     │   └── messages.ts           # Host↔Webview message contract
     ├── server/
-    │   └── serverProcess.ts      # Spawn, port alloc, health poll, process-tree cleanup
+    │   ├── serverProcess.ts      # Low-level spawn, port alloc, health poll, process-tree cleanup
+    │   └── serverManager.ts      # Lifecycle manager: PID file, reuse, own, exit safety net
     ├── session/
     │   └── sessionManager.ts     # Active stream + session list
     └── webview/
@@ -157,10 +158,11 @@ Server streams over GET /event (global SSE)
 ### Extension Lifecycle
 
 ```
-activate() → KimixController → ServerProcess.start() → findFreePort() → spawn() → waitForHealth()
-deactivate() → KimixController.dispose() → ServerProcess.stop()
+activate() → KimixController → ServerLifecycleManager.start()
+  → read PID file → probe base port → (reuse | spawn on free port) → write PID file
+deactivate() → KimixController.dispose() → ServerLifecycleManager.stop()
   → killWindows(): taskkill /t /f  |  killUnix(): SIGTERM → 3s → SIGKILL
-Process-exit safety: process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP') → kill()
+Process-exit safety: process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP') → kill() + unlink PID file
 ```
 
 ### Configuration (`kimix.*`)
@@ -230,14 +232,15 @@ Client reconnects up to 5× with linear backoff, yields `reconnected` event befo
 
 ---
 
-## 10. Process Cleanup (Four-Layer Safety Net)
+## 10. Process Cleanup (Five-Layer Safety Net)
 
-`ServerProcess` prevents orphaned child processes:
+`ServerLifecycleManager` prevents orphaned child processes:
 
-1. **Explicit `stop()`** — terminates entire process tree
-2. **Graceful-then-forceful** — SIGTERM/taskkill first, then SIGKILL/taskkill after grace period
-3. **Process-exit safety** — `process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP')` best-effort cleanup
-4. **Race-safe** — `_killInProgress` flag coordinates `exit` handler with `kill()`
+1. **One manager per workspace** — only one `opencode serve` child is tracked at a time.
+2. **Explicit `stop()` / `dispose()`** — terminates the entire process tree.
+3. **Graceful-then-forceful** — SIGTERM/taskkill first, then SIGKILL/taskkill after grace period.
+4. **Persisted PID file** — `<globalStorage>/kimix-server/<workspace>.json` lets the next activation adopt or clean up a leftover process.
+5. **Process-exit safety** — synchronous `process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP')` cleanup unlinks the PID file and kills the owned child.
 
 ---
 

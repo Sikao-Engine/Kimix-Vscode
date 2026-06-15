@@ -95,6 +95,21 @@
         "command": "kimix.showLogs",
         "title": "KimiX: Show Logs",
         "icon": "$(output)"
+      },
+      {
+        "command": "kimix.startServer",
+        "title": "KimiX: Start Server",
+        "icon": "$(play)"
+      },
+      {
+        "command": "kimix.stopServer",
+        "title": "KimiX: Stop Server",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "kimix.restartServer",
+        "title": "KimiX: Restart Server",
+        "icon": "$(refresh)"
       }
     ],
     "viewsContainers": {

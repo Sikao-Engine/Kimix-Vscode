@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from "node:child_process";
+import { ChildProcess, spawn, spawnSync } from "node:child_process";
 import * as net from "node:net";
 import { Logger } from "../logger";
 
@@ -74,6 +74,10 @@ export class ServerProcess {
 
   get isRunning(): boolean {
     return this._status === "running" && this.child !== undefined;
+  }
+
+  get pid(): number | undefined {
+    return this.child?.pid;
   }
 
   /** Start the server (idempotent: returns immediately if already running). */
@@ -331,13 +335,202 @@ export class ServerProcess {
 }
 
 /** Find a free TCP port starting from `from`, scanning upward. */
-export async function findFreePort(host: string, from: number): Promise<number> {
+export async function findFreePort(
+  host: string,
+  from: number,
+  avoid?: Set<number>,
+): Promise<number> {
   for (let port = from; port < from + 200; port++) {
+    if (avoid?.has(port)) {
+      continue;
+    }
     if (await isPortFree(host, port)) {
       return port;
     }
   }
   throw new Error(`no free port found from ${from}`);
+}
+
+/** Best-effort check that a PID is still alive. */
+export function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Try to find the PID listening on a given TCP port (best-effort, cross-platform). */
+export async function findPidByPort(
+  _host: string,
+  port: number,
+): Promise<number | undefined> {
+  return process.platform === "win32"
+    ? findPidByPortWindows(port)
+    : findPidByPortUnix(port);
+}
+
+function findPidByPortWindows(port: number): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    const proc = spawn("netstat", ["-ano", "-p", "tcp"], {
+      windowsHide: true,
+    });
+    let stdout = "";
+    proc.stdout?.on("data", (d) => {
+      stdout += String(d);
+    });
+    const timeout = setTimeout(() => {
+      proc.kill();
+      resolve(undefined);
+    }, 5000);
+    proc.on("error", () => {
+      clearTimeout(timeout);
+      resolve(undefined);
+    });
+    proc.on("exit", () => {
+      clearTimeout(timeout);
+      const regex = new RegExp(
+        `TCP\\s+[^:]+:${port}\\s+.*LISTENING\\s+(\\d+)`,
+        "i",
+      );
+      const match = stdout.match(regex);
+      resolve(match ? Number(match[1]) : undefined);
+    });
+  });
+}
+
+function findPidByPortUnix(port: number): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    const proc = spawn("lsof", ["-iTCP:" + port, "-sTCP:LISTEN", "-t", "-P"], {
+      windowsHide: true,
+    });
+    let stdout = "";
+    proc.stdout?.on("data", (d) => {
+      stdout += String(d);
+    });
+    const timeout = setTimeout(() => {
+      proc.kill();
+      resolve(undefined);
+    }, 5000);
+    proc.on("error", () => {
+      clearTimeout(timeout);
+      resolve(undefined);
+    });
+    proc.on("exit", () => {
+      clearTimeout(timeout);
+      const pid = Number(stdout.trim().split(/\s+/)[0]);
+      resolve(Number.isFinite(pid) ? pid : undefined);
+    });
+  });
+}
+
+/**
+ * Terminate a process tree by PID.
+ *
+ * - Windows: `taskkill /pid <pid> /t /f`
+ * - Unix: SIGTERM to process group, wait up to `gracefulMs`, then SIGKILL.
+ */
+export async function killProcessTree(
+  pid: number,
+  options?: { gracefulMs?: number },
+): Promise<void> {
+  if (process.platform === "win32") {
+    return killProcessTreeWindows(pid);
+  }
+  return killProcessTreeUnix(pid, options?.gracefulMs ?? 3000);
+}
+
+function killProcessTreeWindows(pid: number): Promise<void> {
+  return new Promise((resolve) => {
+    const proc = spawn(
+      "taskkill",
+      ["/pid", String(pid), "/t", "/f"],
+      { windowsHide: true, stdio: "ignore" },
+    );
+    const timeout = setTimeout(() => {
+      proc.kill();
+      resolve();
+    }, 5000);
+    proc.on("exit", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    proc.on("error", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+}
+
+async function killProcessTreeUnix(pid: number, gracefulMs: number): Promise<void> {
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      return;
+    }
+  }
+  try {
+    await waitForProcessExit(pid, gracefulMs);
+  } catch {
+    try {
+      process.kill(-pid, "SIGKILL");
+    } catch {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // already gone
+      }
+    }
+  }
+}
+
+function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  return new Promise<void>((resolve, reject) => {
+    const check = (): void => {
+      try {
+        process.kill(pid, 0);
+      } catch {
+        resolve();
+        return;
+      }
+      if (Date.now() - start > timeoutMs) {
+        reject(new Error("timeout"));
+        return;
+      }
+      setTimeout(check, 200);
+    };
+    check();
+  });
+}
+
+/** Synchronous process-tree kill for use inside `process.on('exit')` handlers. */
+export function killProcessTreeSync(pid: number): void {
+  if (process.platform === "win32") {
+    try {
+      spawnSync(
+        "taskkill",
+        ["/pid", String(pid), "/t", "/f"],
+        { windowsHide: true, stdio: "ignore", timeout: 3000 },
+      );
+    } catch {
+      // best-effort
+    }
+    return;
+  }
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // best-effort
+    }
+  }
 }
 
 function isPortFree(host: string, port: number): Promise<boolean> {

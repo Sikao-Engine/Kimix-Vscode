@@ -40,9 +40,17 @@ export interface MessageWithParts {
   parts: MessagePart[];
 }
 
+export interface ServerInfo {
+  port?: number;
+  pid?: number;
+  owned: boolean;
+  reused: boolean;
+}
+
 export interface UIState {
   status: "stopped" | "starting" | "running" | "error";
   serverError?: string;
+  serverInfo?: ServerInfo;
   sessions: Session[];
   currentSessionId?: string;
   agents: Agent[];
@@ -56,6 +64,9 @@ export type PermissionReply = "once" | "always" | "reject";
 
 export type WebviewToHost =
   | { type: "ready" }
+  | { type: "startServer" }
+  | { type: "stopServer" }
+  | { type: "restartServer" }
   | { type: "sendPrompt"; text: string }
   | { type: "abort" }
   | { type: "newSession" }

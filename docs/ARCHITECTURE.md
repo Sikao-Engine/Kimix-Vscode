@@ -21,7 +21,9 @@ packages/
         client.ts             HTTP + SSE client (native fetch, no vscode dep)
         messages.ts           Host <-> Webview message contract
       server/
-        serverProcess.ts      Spawn, port alloc, health poll, & process-tree cleanup
+        serverProcess.ts      Low-level spawn, port alloc, health poll, & process-tree cleanup
+        serverManager.ts      Lifecycle manager: PID file, reuse, own, exit safety net
+      serverStatusBar.ts      Status-bar item + quick-pick server menu
       session/
         sessionManager.ts     Active-session stream + session list
       controller/
@@ -42,11 +44,13 @@ The dependency direction is strictly one-way:
 
 ```
 extension.ts
-  └─ controller/KimixController
-       ├─ server/ServerProcess      (process lifecycle)
-       ├─ protocol/OpencodeClient    (HTTP + SSE)        ← no vscode import
-       │    └─ protocol/sseParser     (pure functions)   ← no vscode import
-       └─ session/SessionManager      (stream orchestration) ← no vscode import
+  ├─ controller/KimixController
+  │    ├─ server/ServerLifecycleManager (process lifecycle + PID file)
+  │    │    └─ server/ServerProcess     (low-level child process)
+  │    ├─ protocol/OpencodeClient       (HTTP + SSE)        ← no vscode import
+  │    │    └─ protocol/sseParser       (pure functions)    ← no vscode import
+  │    └─ session/SessionManager        (stream orchestration) ← no vscode import
+  ├─ serverStatusBar                    (status-bar UI)
   └─ webview/webviewManager → controller (message bridge)
 ```
 
@@ -81,18 +85,23 @@ See `docs/PROTOCOL.md`, `docs/WEBVIEW.md`, `docs/SESSIONS.md` for details.
 ```
 activate()
   └─ KimixController (context.subscriptions.push)
-       └─ ServerProcess.start()
-            └─ findFreePort() → spawn() → waitForHealth()
+       └─ ServerLifecycleManager.start()
+            ├─ read PID file → probe base port
+            ├─ reuse/adopt or spawn on free port
+            └─ write PID file
 
 deactivate() / VS Code subscriptions dispose
   └─ KimixController.dispose() (async)
-       └─ ServerProcess.stop() (async)
+       └─ ServerLifecycleManager.stop() (async)
             ├─ killWindows()  — taskkill /t /f (Windows)
             └─ killUnix()     — SIGTERM → 3s → SIGKILL (Unix)
+            └─ delete PID file
 
 Process-exit safety net (extension host crash)
   └─ process.on('exit' | 'SIGTERM' | 'SIGINT' | 'SIGHUP')
-       └─ ServerProcess.kill()  (best-effort cleanup)
+       └─ ServerLifecycleManager synchronous cleanup
+            ├─ unlink PID file
+            └─ kill owned child (best-effort)
 ```
 
 The controller is registered with `context.subscriptions.push(controller)`, but

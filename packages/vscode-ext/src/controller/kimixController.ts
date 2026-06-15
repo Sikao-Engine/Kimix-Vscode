@@ -5,13 +5,24 @@ import { OpencodeClient } from "../protocol/client";
 import {
   HostToWebview,
   PlanMode,
+  ServerInfo,
   UIState,
   WebviewToHost,
 } from "../protocol/messages";
-import { ServerProcess } from "../server/serverProcess";
+import {
+  ServerLifecycleManager,
+  ServerLifecycleManagerConfig,
+  StartResult,
+} from "../server/serverManager";
 import { SessionManager } from "../session/sessionManager";
 
 type Listener = (msg: HostToWebview) => void;
+
+export interface ServerStatusInfo {
+  status: UIState["status"];
+  info?: ServerInfo;
+  error?: string;
+}
 
 /**
  * Central orchestrator: owns the server process, the protocol client and the
@@ -20,7 +31,7 @@ type Listener = (msg: HostToWebview) => void;
  */
 export class KimixController implements vscode.Disposable {
   private config: KimixConfig;
-  private server: ServerProcess | undefined;
+  private server: ServerLifecycleManager | undefined;
   private client: OpencodeClient | undefined;
   private sessions: SessionManager | undefined;
   private listeners = new Set<Listener>();
@@ -31,7 +42,14 @@ export class KimixController implements vscode.Disposable {
   private serverStatus: UIState["status"] = "stopped";
   private serverError: string | undefined;
 
-  constructor(private readonly workspaceRoot: string) {
+  private _ensurePromise: Promise<void> | undefined;
+  private _onDidChangeServerStatus = new vscode.EventEmitter<ServerStatusInfo>();
+  public readonly onDidChangeServerStatus = this._onDidChangeServerStatus.event;
+
+  constructor(
+    private readonly workspaceRoot: string,
+    private readonly pidFilePath: string,
+  ) {
     this.config = readConfig();
   }
 
@@ -63,6 +81,15 @@ export class KimixController implements vscode.Disposable {
       case "ready":
         await this.ensureStarted();
         this.pushState();
+        break;
+      case "startServer":
+        await this.startServer();
+        break;
+      case "stopServer":
+        await this.stopServer();
+        break;
+      case "restartServer":
+        await this.restartServer();
         break;
       case "refresh":
         await this.sessions?.refreshSessions();
@@ -139,49 +166,127 @@ export class KimixController implements vscode.Disposable {
   }
 
   async restart(): Promise<void> {
-    await this.server?.stop();
-    this.server = undefined;
-    this.sessions?.dispose();
-    this.sessions = undefined;
-    this.client = undefined;
+    await this.restartServer();
+  }
+
+  async startServer(): Promise<void> {
     await this.ensureStarted();
+  }
+
+  async stopServer(): Promise<void> {
+    await this.server?.stop();
+    this.resetAfterStop();
     this.pushState();
+  }
+
+  async restartServer(): Promise<void> {
+    await this.stopServer();
+    await this.ensureStarted();
   }
 
   onConfigChanged(config: KimixConfig): void {
     this.config = config;
   }
 
+  getServerStatus(): ServerStatusInfo {
+    return {
+      status: this.serverStatus,
+      info: this.server?.info,
+      error: this.serverError,
+    };
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────
 
-  private async ensureStarted(): Promise<void> {
-    if (this.sessions && this.server?.isRunning) {
+  private ensureStarted(): Promise<void> {
+    if (this._ensurePromise) {
+      return this._ensurePromise;
+    }
+    this._ensurePromise = this.doEnsureStarted().finally(() => {
+      this._ensurePromise = undefined;
+    });
+    return this._ensurePromise;
+  }
+
+  private async doEnsureStarted(): Promise<void> {
+    if (this.server?.status === "running" && this.sessions) {
       return;
     }
+
     this.serverStatus = "starting";
     this.serverError = undefined;
     this.pushState();
 
-    this.server = new ServerProcess({
-      executable: this.config.executable,
-      cwd: this.workspaceRoot,
-      host: this.config.host,
-      basePort: this.config.basePort,
-      env: this.config.environmentVariables,
-    });
+    if (!this.server) {
+      const serverConfig: ServerLifecycleManagerConfig = {
+        executable: this.config.executable,
+        cwd: this.workspaceRoot,
+        host: this.config.host,
+        basePort: this.config.basePort,
+        env: this.config.environmentVariables,
+        pidFilePath: this.pidFilePath,
+      };
+      this.server = new ServerLifecycleManager(serverConfig);
+    }
 
-    try {
-      await this.server.start();
-    } catch (err) {
-      this.serverStatus = "error";
-      this.serverError = String(err);
+    const result = await this.server.start();
+
+    if (result.kind === "started") {
+      await this.afterStart(result.info.port ?? this.config.basePort);
+      return;
+    }
+
+    if (result.kind === "foreign") {
+      const pidText = result.pid ? ` (PID ${result.pid})` : "";
+      const choice = await vscode.window.showInformationMessage(
+        `An opencode server is already running on port ${result.port}${pidText}.`,
+        { modal: false },
+        "Reuse",
+        "Stop & start new",
+        "Start on another port",
+      );
+
+      let followUp: StartResult | undefined;
+
+      if (choice === "Reuse") {
+        followUp = await this.server.start({ reuseForeign: true });
+      } else if (choice === "Stop & start new") {
+        followUp = await this.server.start({ killForeign: true });
+      } else if (choice === "Start on another port") {
+        followUp = await this.server.start({ fallbackToNextPort: true });
+      }
+
+      if (followUp?.kind === "started") {
+        await this.afterStart(followUp.info.port ?? this.config.basePort);
+        return;
+      }
+
+      if (followUp?.kind === "error" || followUp?.kind === "foreign") {
+        this.serverStatus = "error";
+        this.serverError =
+          followUp.kind === "error"
+            ? followUp.error
+            : "existing server is still occupying the port";
+        this.pushState();
+        return;
+      }
+
+      // User dismissed the prompt.
+      this.serverStatus = "stopped";
       this.pushState();
       return;
     }
 
+    // error
+    this.serverStatus = "error";
+    this.serverError = result.error;
+    this.pushState();
+  }
+
+  private async afterStart(port: number): Promise<void> {
     this.client = new OpencodeClient({
       host: this.config.host,
-      port: this.server.port,
+      port,
       log: (m, d) => Logger.debug(m, d),
     });
 
@@ -191,6 +296,14 @@ export class KimixController implements vscode.Disposable {
     await this.loadInitialData();
     this.serverStatus = "running";
     this.pushState();
+  }
+
+  private resetAfterStop(): void {
+    this.sessions?.dispose();
+    this.sessions = undefined;
+    this.client = undefined;
+    this.serverStatus = "stopped";
+    this.serverError = undefined;
   }
 
   private wireSessionEvents(sm: SessionManager): void {
@@ -282,6 +395,7 @@ export class KimixController implements vscode.Disposable {
     const state: UIState = {
       status: this.serverStatus,
       serverError: this.serverError,
+      serverInfo: this.server?.info,
       sessions: this.sessions?.sessions ?? [],
       currentSessionId: this.sessions?.currentSessionId,
       agents: this.agents,
@@ -291,11 +405,13 @@ export class KimixController implements vscode.Disposable {
       planMode: this.planMode,
     };
     this.post({ type: "state", state });
+    this._onDidChangeServerStatus.fire(this.getServerStatus());
   }
 
   async dispose(): Promise<void> {
-    await this.server?.stop();
-    this.sessions?.dispose();
+    await this.server?.dispose();
+    this.resetAfterStop();
     this.listeners.clear();
+    this._onDidChangeServerStatus.dispose();
   }
 }

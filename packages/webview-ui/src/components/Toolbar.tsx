@@ -79,6 +79,49 @@ export function Toolbar() {
       >
         New
       </button>
+
+      <div className="toolbar-spacer" />
+
+      {ui.serverInfo && ui.status === "running" && (
+        <span
+          className={`control status-chip ${ui.serverInfo.owned ? "owned" : "foreign"}`}
+          title={
+            ui.serverInfo.owned
+              ? `Running on port ${ui.serverInfo.port}`
+              : `Reused foreign server on port ${ui.serverInfo.port}`
+          }
+        >
+          {ui.serverInfo.owned ? "●" : "◐"} {ui.serverInfo.port}
+        </span>
+      )}
+
+      {ui.status === "running" ? (
+        <>
+          <button
+            className="control"
+            onClick={() => actions.restartServer()}
+            title="Restart server"
+          >
+            ↻
+          </button>
+          <button
+            className="control danger"
+            onClick={() => actions.stopServer()}
+            title="Stop server"
+          >
+            ■
+          </button>
+        </>
+      ) : (
+        <button
+          className="control primary"
+          onClick={() => actions.startServer()}
+          disabled={ui.status === "starting"}
+          title="Start server"
+        >
+          ▶
+        </button>
+      )}
     </div>
   );
 }

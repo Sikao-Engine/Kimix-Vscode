@@ -60,6 +60,25 @@ html,
   cursor: not-allowed;
 }
 
+.toolbar-spacer {
+  flex: 1;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.status-chip.owned {
+  color: var(--vscode-testing-iconPassed, #89d185);
+}
+
+.status-chip.foreign {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
 .banner {
   padding: 6px 10px;
   font-size: 12px;

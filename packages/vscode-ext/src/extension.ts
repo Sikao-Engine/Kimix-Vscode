@@ -1,7 +1,10 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import { onConfigChange } from "./config";
 import { KimixController } from "./controller/kimixController";
 import { Logger } from "./logger";
+import { KimixServerStatusBar } from "./serverStatusBar";
 import {
   KimixTabPanel,
   KimixViewProvider,
@@ -15,11 +18,21 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const workspaceRoot =
     vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+  const workspaceName =
+    vscode.workspace.workspaceFolders?.[0]?.name ?? "no-workspace";
+  const pidFilePath = path.join(
+    context.globalStorageUri.fsPath,
+    "kimix-server",
+    `${workspaceName}.json`,
+  );
+  fs.mkdirSync(path.dirname(pidFilePath), { recursive: true });
 
-  const controller = new KimixController(workspaceRoot);
+  const controller = new KimixController(workspaceRoot, pidFilePath);
   _controller = controller;
   context.subscriptions.push(controller);
-  context.subscriptions.push(onConfigChange((c) => controller.onConfigChanged(c)));
+  context.subscriptions.push(
+    onConfigChange((c) => controller.onConfigChanged(c)),
+  );
 
   const provider = new KimixViewProvider(context.extensionUri, controller);
   context.subscriptions.push(
@@ -30,7 +43,10 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  registerCommands(context, controller);
+  const statusBar = new KimixServerStatusBar(controller);
+  context.subscriptions.push(statusBar);
+
+  registerCommands(context, controller, statusBar);
 
   Logger.info("KimiX Code activated");
 }
@@ -38,6 +54,7 @@ export function activate(context: vscode.ExtensionContext): void {
 function registerCommands(
   context: vscode.ExtensionContext,
   controller: KimixController,
+  statusBar: KimixServerStatusBar,
 ): void {
   const cmd = (id: string, fn: (...args: any[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
@@ -50,14 +67,15 @@ function registerCommands(
   cmd("kimix.openInTab", () =>
     KimixTabPanel.createOrShow(context.extensionUri, controller),
   );
+
+  cmd("kimix.startServer", () => controller.startServer());
+  cmd("kimix.stopServer", () => controller.stopServer());
+  cmd("kimix.restartServer", () => controller.restartServer());
+  cmd("kimix.showServerMenu", () => statusBar.showMenu());
 }
 
 export async function deactivate(): Promise<void> {
   Logger.info("KimiX Code deactivated");
-  // Explicitly dispose the controller as a fallback.
-  // The controller is also registered via context.subscriptions.push(controller),
-  // but calling dispose() here ensures cleanup even if VS Code's disposal mechanism
-  // is not reliable during abrupt shutdowns.
   if (_controller) {
     await _controller.dispose();
   }
