@@ -139,7 +139,7 @@ export class KimixController implements vscode.Disposable {
   }
 
   async restart(): Promise<void> {
-    this.server?.stop();
+    await this.server?.stop();
     this.server = undefined;
     this.sessions?.dispose();
     this.sessions = undefined;
@@ -293,8 +293,8 @@ export class KimixController implements vscode.Disposable {
     this.post({ type: "state", state });
   }
 
-  dispose(): void {
-    this.server?.stop();
+  async dispose(): Promise<void> {
+    await this.server?.stop();
     this.sessions?.dispose();
     this.listeners.clear();
   }

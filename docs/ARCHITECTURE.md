@@ -21,7 +21,7 @@ packages/
         client.ts             HTTP + SSE client (native fetch, no vscode dep)
         messages.ts           Host <-> Webview message contract
       server/
-        serverProcess.ts      Spawns "<exe> serve", port alloc, health poll
+        serverProcess.ts      Spawn, port alloc, health poll, & process-tree cleanup
       session/
         sessionManager.ts     Active-session stream + session list
       controller/
@@ -73,6 +73,31 @@ Server streams over GET /event (global SSE)
 ```
 
 See `docs/PROTOCOL.md`, `docs/WEBVIEW.md`, `docs/SESSIONS.md` for details.
+
+## Lifecycle
+
+### Extension activation / deactivation
+
+```
+activate()
+  └─ KimixController (context.subscriptions.push)
+       └─ ServerProcess.start()
+            └─ findFreePort() → spawn() → waitForHealth()
+
+deactivate() / VS Code subscriptions dispose
+  └─ KimixController.dispose() (async)
+       └─ ServerProcess.stop() (async)
+            ├─ killWindows()  — taskkill /t /f (Windows)
+            └─ killUnix()     — SIGTERM → 3s → SIGKILL (Unix)
+
+Process-exit safety net (extension host crash)
+  └─ process.on('exit' | 'SIGTERM' | 'SIGINT' | 'SIGHUP')
+       └─ ServerProcess.kill()  (best-effort cleanup)
+```
+
+The controller is registered with `context.subscriptions.push(controller)`, but
+`deactivate()` also explicitly calls `await _controller.dispose()` as a
+fallback for abrupt shutdown scenarios.
 
 ## Build
 

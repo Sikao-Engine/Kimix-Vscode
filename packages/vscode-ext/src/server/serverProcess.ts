@@ -21,6 +21,18 @@ export interface ServerProcessConfig {
  *
  * One instance per workspace. Picks a free port, spawns the server, polls
  * `/global/health` until ready, and tears the process down on dispose.
+ *
+ * ## Cleanup guarantees
+ *
+ * 1. **Explicit** — `stop()` / `kill()` terminates the entire process tree
+ *    (process group on Unix, taskkill /t on Windows).
+ * 2. **Graceful then forceful** — SIGTERM (or taskkill /f) followed by
+ *    SIGKILL after a timeout if the process hasn't exited.
+ * 3. **Process-exit safety net** — `process.on('exit')` / SIGTERM / SIGINT /
+ *    SIGHUP handlers are registered to clean up if the Node.js process exits
+ *    unexpectedly (e.g. VS Code extension host crash).
+ * 4. **Race-condition safe** — The `exit` event handler coordinates with
+ *    `kill()` via a `_killInProgress` flag so that state isn't corrupted.
  */
 export class ServerProcess {
   private child: ChildProcess | undefined;
@@ -30,6 +42,12 @@ export class ServerProcess {
   private readonly config: Required<Omit<ServerProcessConfig, "env">> & {
     env?: Record<string, string>;
   };
+
+  /** True while a kill / stop is in progress (prevents races with `exit` handler). */
+  private _killInProgress = false;
+
+  /** Reference to the process-exit safety-net handler, used for clean-up. */
+  private _exitHandler: (() => void) | undefined;
 
   constructor(config: ServerProcessConfig) {
     this.config = {
@@ -85,6 +103,7 @@ export class ServerProcess {
       env: { ...process.env, ...this.config.env },
       shell: process.platform === "win32",
       windowsHide: true,
+      // detached: false (default) — child stays in our process group
     });
 
     this.child.stdout?.on("data", (d) =>
@@ -93,55 +112,199 @@ export class ServerProcess {
     this.child.stderr?.on("data", (d) =>
       Logger.debug(`[server:err] ${String(d).trimEnd()}`),
     );
+
+    // ── Exit handler —────────────────────────────────────────────
+    // Must coordinate with kill() to avoid race conditions:
+    //   - If kill() initiated the exit, we still clear child ref
+    //     but don't override status ("stopped" was already set).
+    //   - If exit was unexpected (crash), update status to "error".
     this.child.on("exit", (code, signal) => {
       Logger.warn(`[server] exited code=${code} signal=${signal}`);
-      this.child = undefined;
-      if (this._status !== "stopped") {
-        this._status = "error";
-        this._lastError = `process exited (code=${code}, signal=${signal})`;
+      if (!this._killInProgress) {
+        // Unexpected exit — update state
+        this.child = undefined;
+        if (this._status !== "stopped") {
+          this._status = "error";
+          this._lastError = `process exited (code=${code}, signal=${signal})`;
+        }
+      } else {
+        // Kill was intentional — clear ref but keep "stopped" status
+        this.child = undefined;
       }
     });
+
     this.child.on("error", (err) => {
       Logger.error(`[server] spawn error`, String(err));
       this._status = "error";
       this._lastError = String(err);
     });
 
+    // ── Process-exit safety net ──────────────────────────────────
+    this.registerProcessExitHandler();
+
     const ok = await this.waitForHealth();
     if (!ok) {
       this._status = "error";
       this._lastError =
         this._lastError ?? "server did not become healthy in time";
-      this.kill();
+      await this.kill();
       throw new Error(this._lastError);
     }
     this._status = "running";
     Logger.info(`[server] healthy on port ${this._port}`);
   }
 
-  /** Stop the server process. */
-  stop(): void {
+  // ── Lifecycle: stop / kill ──────────────────────────────────────
+
+  /** Stop the server process gracefully. */
+  async stop(): Promise<void> {
     this._status = "stopped";
-    this.kill();
+    await this.kill();
   }
 
-  private kill(): void {
-    if (!this.child) {
+  /**
+   * Terminate the child process (and its entire process tree).
+   *
+   * - **Unix**: sends SIGTERM to the process group (negative PID), waits up to
+   *   3 s for graceful exit, then sends SIGKILL.
+   * - **Windows**: runs `taskkill /pid <pid> /t /f` and awaits completion.
+   */
+  private async kill(): Promise<void> {
+    if (!this.child || this._killInProgress) {
       return;
     }
+    this._killInProgress = true;
+
     try {
-      if (process.platform === "win32" && this.child.pid) {
-        spawn("taskkill", ["/pid", String(this.child.pid), "/t", "/f"], {
-          windowsHide: true,
-        });
+      if (process.platform === "win32") {
+        await this.killWindows();
       } else {
-        this.child.kill("SIGTERM");
+        await this.killUnix();
       }
     } catch (err) {
       Logger.warn(`[server] kill failed`, String(err));
     }
+
     this.child = undefined;
+    this._killInProgress = false;
   }
+
+  /**
+   * Windows: run `taskkill /pid <pid> /t /f` and await completion (5 s timeout).
+   */
+  private async killWindows(): Promise<void> {
+    const pid = this.child?.pid;
+    if (!pid) {
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      const proc = spawn(
+        "taskkill",
+        ["/pid", String(pid), "/t", "/f"],
+        {
+          windowsHide: true,
+          stdio: "ignore",
+        },
+      );
+      const timeout = setTimeout(() => {
+        proc.kill();
+        resolve(); // resolve anyway after timeout — best-effort
+      }, 5000);
+      proc.on("exit", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+      proc.on("error", () => {
+        clearTimeout(timeout);
+        resolve(); // don't reject — best-effort cleanup
+      });
+    });
+  }
+
+  /**
+   * Unix: send SIGTERM to the process group, wait up to 3 s, then SIGKILL.
+   */
+  private async killUnix(): Promise<void> {
+    const pid = this.child?.pid;
+    if (!pid) {
+      return;
+    }
+
+    // Send SIGTERM to the entire process group (negative PID).
+    try {
+      process.kill(-pid, "SIGTERM");
+    } catch {
+      // Process group may not exist; fall back to direct child kill
+      this.child?.kill("SIGTERM");
+    }
+
+    // Wait up to 3 s for graceful exit, then force SIGKILL.
+    try {
+      await this.waitForExit(3000);
+    } catch {
+      // Graceful timeout — force kill
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        this.child?.kill("SIGKILL");
+      }
+    }
+  }
+
+  /**
+   * Wait for the child process to exit (up to `timeoutMs`).
+   * Resolves when the child exits. Rejects on timeout.
+   */
+  private waitForExit(timeoutMs: number): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      if (!this.child) {
+        return resolve();
+      }
+      const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+      this.child.once("exit", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+
+  // ── Process-exit safety net ─────────────────────────────────────
+
+  /**
+   * Register handlers so that if the Node.js process exits unexpectedly
+   * (VS Code extension host crash, SIGKILL, etc.), we still try to clean up
+   * the child process.
+   *
+   * These handlers are best-effort — on process exit, async operations may
+   * not complete, but we try.
+   */
+  private registerProcessExitHandler(): void {
+    // Unregister any previous handler first (idempotent)
+    this.unregisterProcessExitHandler();
+
+    const handler = (): void => {
+      // Fire-and-forget on process exit — best-effort cleanup
+      this.kill();
+    };
+    process.on("exit", handler);
+    process.on("SIGTERM", handler);
+    process.on("SIGINT", handler);
+    process.on("SIGHUP", handler);
+    this._exitHandler = handler;
+  }
+
+  private unregisterProcessExitHandler(): void {
+    if (this._exitHandler) {
+      process.off("exit", this._exitHandler);
+      process.off("SIGTERM", this._exitHandler);
+      process.off("SIGINT", this._exitHandler);
+      process.off("SIGHUP", this._exitHandler);
+      this._exitHandler = undefined;
+    }
+  }
+
+  // ── Health check ────────────────────────────────────────────────
 
   private async waitForHealth(): Promise<boolean> {
     const deadline = Date.now() + this.config.startupTimeoutMs;

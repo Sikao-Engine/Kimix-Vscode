@@ -7,6 +7,8 @@ import {
   KimixViewProvider,
 } from "./webview/webviewManager";
 
+let _controller: KimixController | undefined;
+
 export function activate(context: vscode.ExtensionContext): void {
   Logger.configure("KimiX Code", "debug");
   Logger.info("activating KimiX Code");
@@ -15,6 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
 
   const controller = new KimixController(workspaceRoot);
+  _controller = controller;
   context.subscriptions.push(controller);
   context.subscriptions.push(onConfigChange((c) => controller.onConfigChanged(c)));
 
@@ -49,6 +52,13 @@ function registerCommands(
   );
 }
 
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
   Logger.info("KimiX Code deactivated");
+  // Explicitly dispose the controller as a fallback.
+  // The controller is also registered via context.subscriptions.push(controller),
+  // but calling dispose() here ensures cleanup even if VS Code's disposal mechanism
+  // is not reliable during abrupt shutdowns.
+  if (_controller) {
+    await _controller.dispose();
+  }
 }

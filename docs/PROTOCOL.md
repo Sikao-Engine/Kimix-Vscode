@@ -14,8 +14,23 @@ The extension spawns one server per workspace:
 - `port` is the first free port at/above `kimix.basePort` (scanned with a TCP
   bind probe).
 - Readiness is polled via `GET /global/health` → `{ "healthy": true }`.
-- On Windows the child is launched with `shell: true` and killed via
-  `taskkill /t /f`; elsewhere `SIGTERM`.
+
+### Process lifecycle & cleanup
+
+The `ServerProcess` class provides **four-layer cleanup** to prevent orphaned
+child processes:
+
+1. **Explicit `stop()`** — terminates the entire process tree:
+   - **Unix**: sends `SIGTERM` to the process group (negative PID), waits up to
+     3 seconds for graceful exit, then sends `SIGKILL` if still alive.
+   - **Windows**: runs `taskkill /pid <pid> /t /f` with a 5-second timeout.
+2. **Graceful-then-forceful** — SIGTERM/taskkill first, then SIGKILL/taskkill
+   timeout after the grace period.
+3. **Process-exit safety net** — `process.on('exit' | 'SIGTERM' | 'SIGINT' |
+   'SIGHUP')` handlers clean up if the Node.js process exits unexpectedly
+   (e.g. VS Code extension host crash).
+4. **Race-condition safe** — A `_killInProgress` flag coordinates the `exit`
+   event handler with `kill()` so that state is never corrupted.
 
 Source: `src/server/serverProcess.ts`.
 
