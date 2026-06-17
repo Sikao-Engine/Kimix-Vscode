@@ -161,6 +161,22 @@ describe("KimixController dispatch", () => {
     });
   });
 
+  it("includes discovered server features in pushed UIState", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).features = {
+      compact: { enabled: true, title: "Compact context" },
+    };
+
+    controller.pushState();
+
+    const state = messages.find((m) => m.type === "state");
+    expect(state).toMatchObject({
+      state: expect.objectContaining({
+        features: { compact: { enabled: true, title: "Compact context" } },
+      }),
+    });
+  });
+
   it("fires abort in the background and posts aborted immediately", async () => {
     const sessions = {
       abort: vi.fn(async () => {}),

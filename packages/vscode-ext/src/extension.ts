@@ -67,6 +67,7 @@ function registerCommands(
   cmd("kimix.compactContext", () => controller.compactContext());
   cmd("kimix.restart", () => controller.restart());
   cmd("kimix.showLogs", () => Logger.show());
+  cmd("kimix.showRawLogs", () => Logger.showRaw());
   cmd("kimix.openInTab", () =>
     KimixTabPanel.createOrShow(context.extensionUri, controller),
   );

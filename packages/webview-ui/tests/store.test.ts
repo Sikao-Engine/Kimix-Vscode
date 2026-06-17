@@ -9,6 +9,7 @@ function resetStore() {
     tools: [],
     busy: false,
     activeTurnId: undefined,
+    activePromptText: undefined,
     pending: [],
     reasoningCollapsed: {},
     globalReasoningCollapsed: false,

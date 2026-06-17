@@ -6,9 +6,15 @@ interface ReasoningBlockProps {
 }
 
 export function ReasoningBlock({ messageId, text }: ReasoningBlockProps) {
-  const collapsed =
-    useStore((s) => s.globalReasoningCollapsed) ||
-    useStore((s) => s.reasoningCollapsed[messageId]);
+  // NOTE: both selectors must be called unconditionally every render.
+  // Combining them with `||` *inside* the hook call list (e.g.
+  // `useStore(a) || useStore(b)`) short-circuits the second hook when the
+  // first is truthy, which violates the Rules of Hooks and crashes the whole
+  // webview ("rendered fewer hooks than expected") the moment reasoning is
+  // collapsed. Read each value separately, then combine.
+  const globalCollapsed = useStore((s) => s.globalReasoningCollapsed);
+  const localCollapsed = useStore((s) => s.reasoningCollapsed[messageId]);
+  const collapsed = globalCollapsed || Boolean(localCollapsed);
   const toggle = useStore((s) => s.toggleReasoning);
 
   return (

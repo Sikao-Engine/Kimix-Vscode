@@ -121,4 +121,46 @@ describe("OpencodeClient", () => {
       createdAt: "2024-01-01T00:00:00Z",
     });
   });
+
+  it("parses the feature capability map", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({
+          features: {
+            compact: {
+              enabled: true,
+              title: "Compact context",
+              description: "Summarize the session",
+            },
+            experimental: { enabled: false },
+          },
+        }),
+      ),
+    );
+    const features = await client.listFeatures();
+    expect(features.compact).toMatchObject({
+      enabled: true,
+      title: "Compact context",
+      description: "Summarize the session",
+    });
+    expect(features.experimental.enabled).toBe(false);
+  });
+
+  it("returns an empty feature map when discovery is unavailable", async () => {
+    // Server without the /experimental/features endpoint → 404.
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(null, false, 404)));
+    expect(await client.listFeatures()).toEqual({});
+  });
+
+  it("posts to /summarize with the selected model", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(true, true, 200));
+    vi.stubGlobal("fetch", fetchMock);
+    const ok = await client.summarize("s1", "openai", "gpt-4");
+    expect(ok).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/session/s1/summarize");
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toMatchObject({ providerID: "openai", modelID: "gpt-4" });
+  });
 });

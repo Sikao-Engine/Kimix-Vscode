@@ -12,7 +12,7 @@ import {
   UIState,
   WebviewToHost,
 } from "../protocol/messages";
-import type { FileListItem, SymbolListItem } from "../protocol/types";
+import type { FeatureInfo, FileListItem, SymbolListItem } from "../protocol/types";
 import {
   ServerLifecycleManager,
   ServerLifecycleManagerConfig,
@@ -70,6 +70,7 @@ export class KimixController implements vscode.Disposable {
   }
 
   private post(msg: HostToWebview): void {
+    Logger.raw("[BRIDGE] → webview", msg.type);
     for (const l of this.listeners) {
       l(msg);
     }
@@ -77,6 +78,7 @@ export class KimixController implements vscode.Disposable {
 
   /** Handle a message coming from any attached webview. */
   async handleMessage(msg: WebviewToHost): Promise<void> {
+    Logger.raw("[BRIDGE] ← webview", msg.type);
     try {
       await this.dispatch(msg);
     } catch (err) {
@@ -449,6 +451,7 @@ export class KimixController implements vscode.Disposable {
       host: this.config.host,
       port,
       log: (m, d) => Logger.debug(m, d),
+      rawLog: (m, d) => Logger.raw(m, d),
     });
 
     this.sessions = new SessionManager(this.client);
@@ -475,6 +478,7 @@ export class KimixController implements vscode.Disposable {
     this.sessions?.dispose();
     this.sessions = undefined;
     this.client = undefined;
+    this.features = {};
     this.serverStatus = "stopped";
     this.serverError = undefined;
     this.currentTurnId = undefined;
@@ -531,6 +535,7 @@ export class KimixController implements vscode.Disposable {
     ]);
     this.agents = agents;
     this.providers = providers;
+    this.features = await this.client.listFeatures().catch(() => ({}));
     this.planManager?.setAgents(agents);
 
     if (!this.selectedAgent && agents.length > 0) {
@@ -555,6 +560,7 @@ export class KimixController implements vscode.Disposable {
 
   private agents: UIState["agents"] = [];
   private providers: UIState["providers"] = [];
+  private features: Record<string, FeatureInfo> = {};
 
   private decoratePrompt(text: string): string {
     if (this.planMode === "plan") {
@@ -588,6 +594,7 @@ export class KimixController implements vscode.Disposable {
       showThinking: this.config.showThinking,
       autoScroll: this.config.autoScroll,
       enableMentions: this.config.enableMentions,
+      features: this.features,
     };
     this.post({ type: "state", state });
     this._onDidChangeServerStatus.fire(this.getServerStatus());

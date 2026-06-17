@@ -49,6 +49,7 @@ interface StoreState {
 
   /** Id of the turn that is currently allowed to update busy/stream state. */
   activeTurnId: string | undefined;
+  activePromptText: string | undefined;
 
   /** Prompts waiting to be sent once the current turn finishes. */
   pending: PendingPrompt[];
@@ -107,6 +108,7 @@ const initialUI: UIState = {
   showThinking: true,
   autoScroll: true,
   enableMentions: true,
+  features: {},
 };
 
 function generateId(): string {
@@ -122,6 +124,7 @@ export const useStore = create<StoreState>((set, get) => ({
   busy: false,
   errorBanner: undefined,
   activeTurnId: undefined,
+  activePromptText: undefined,
   pending: [],
   reasoningCollapsed: {},
   globalReasoningCollapsed: false,
@@ -132,7 +135,13 @@ export const useStore = create<StoreState>((set, get) => ({
   setComposerText: (text) => set({ composerText: text }),
 
   resetStreamState: () =>
-    set({ stream: [], tools: [], busy: false, activeTurnId: undefined }),
+    set({
+      stream: [],
+      tools: [],
+      busy: false,
+      activeTurnId: undefined,
+      activePromptText: undefined,
+    }),
 
   applyHostMessage: (msg) => {
     switch (msg.type) {
@@ -157,6 +166,7 @@ export const useStore = create<StoreState>((set, get) => ({
             updates.stream = [];
             updates.tools = [];
             updates.activeTurnId = undefined;
+            updates.activePromptText = undefined;
           }
         } else if (next === "implementing") {
           updates.stream = [];
@@ -166,7 +176,13 @@ export const useStore = create<StoreState>((set, get) => ({
         break;
       }
       case "messages":
-        set({ messages: msg.messages, stream: [], tools: [], busy: false });
+        set({
+          messages: msg.messages,
+          stream: [],
+          tools: [],
+          busy: false,
+          activePromptText: undefined,
+        });
         break;
       case "streamText": {
         const { activeTurnId } = get();
@@ -211,21 +227,21 @@ export const useStore = create<StoreState>((set, get) => ({
       case "streamIdle": {
         const { activeTurnId, pending } = get();
         if (msg.turnId && activeTurnId && msg.turnId !== activeTurnId) {
-          // Stale stream idle for an already-aborted turn: just refresh
-          // messages without touching busy state.
           postToHost({ type: "refresh" });
           return;
         }
 
+        const completedMessages = archiveCompletedTurn(get());
         const locked = pending.find((p) => p.locked);
         if (locked) {
-          // Continue with the queued prompt.
           const nextPending = pending.filter((p) => p.id !== locked.id);
           const nextId = generateId();
           set({
+            messages: completedMessages,
             pending: nextPending,
             busy: true,
             activeTurnId: nextId,
+            activePromptText: locked.text,
             stream: [],
             tools: [],
           });
@@ -237,8 +253,14 @@ export const useStore = create<StoreState>((set, get) => ({
           return;
         }
 
-        set({ busy: false, activeTurnId: undefined });
-        postToHost({ type: "refresh" });
+        set({
+          messages: completedMessages,
+          busy: false,
+          activeTurnId: undefined,
+          activePromptText: undefined,
+          stream: [],
+          tools: [],
+        });
         break;
       }
       case "aborted": {
@@ -246,7 +268,13 @@ export const useStore = create<StoreState>((set, get) => ({
         if (msg.turnId && activeTurnId && msg.turnId !== activeTurnId) {
           return;
         }
-        set({ busy: false, activeTurnId: undefined });
+        set({
+          busy: false,
+          activeTurnId: undefined,
+          activePromptText: undefined,
+          stream: [],
+          tools: [],
+        });
         break;
       }
       case "permission":
@@ -361,7 +389,13 @@ export const useStore = create<StoreState>((set, get) => ({
 
   stopGeneration: () => {
     const turnId = get().activeTurnId;
-    set({ busy: false, activeTurnId: undefined });
+    set({
+      busy: false,
+      activeTurnId: undefined,
+      activePromptText: undefined,
+      stream: [],
+      tools: [],
+    });
     postToHost({ type: "abort", turnId });
   },
 
@@ -392,6 +426,38 @@ export const useStore = create<StoreState>((set, get) => ({
   clearAttachments: () => set({ attachments: [] }),
 }));
 
+function archiveCompletedTurn(state: StoreState): MessageWithParts[] {
+  const out = [...state.messages];
+  if (state.activePromptText) {
+    out.push({
+      info: {
+        id: `local-user-${state.activeTurnId ?? generateId()}`,
+        role: "user",
+        createdAt: new Date().toISOString(),
+      },
+      parts: [{ type: "text", text: state.activePromptText }],
+    });
+  }
+  if (state.stream.length > 0 || state.tools.length > 0) {
+    out.push({
+      info: {
+        id: `local-assistant-${state.activeTurnId ?? generateId()}`,
+        role: "assistant",
+        createdAt: new Date().toISOString(),
+      },
+      parts: [
+        ...state.stream.map((b) => ({ type: b.kind, text: b.text })),
+        ...state.tools.map((t) => ({
+          type: "tool",
+          tool: t.toolName,
+          state: { status: t.status, title: t.title },
+        })),
+      ],
+    });
+  }
+  return out;
+}
+
 function promoteFirst(pending: PendingPrompt[]): PendingPrompt[] {
   if (pending.length === 0) {
     return pending;
@@ -410,8 +476,16 @@ function formatRefs(text: string, attachments: FileRef[]): string {
 // ── Action helpers (thin wrappers around postToHost) ────────────────
 
 export const actions = {
-  sendPrompt: (text: string, turnId?: string) =>
-    postToHost({ type: "sendPrompt", text, turnId }),
+  sendPrompt: (text: string, turnId?: string) => {
+    useStore.setState({
+      busy: true,
+      activeTurnId: turnId,
+      activePromptText: text,
+      stream: [],
+      tools: [],
+    });
+    postToHost({ type: "sendPrompt", text, turnId });
+  },
   generatePlan: (text: string, turnId?: string) => {
     useStore.setState({
       busy: true,

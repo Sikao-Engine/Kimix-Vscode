@@ -80,6 +80,17 @@ export interface PromptBody {
 
 export type PermissionReply = "once" | "always" | "reject";
 
+/**
+ * A server capability advertised via `GET /experimental/features`.
+ * Extension features (e.g. compact) should be treated as disabled when the
+ * corresponding key is absent from the server response.
+ */
+export interface FeatureInfo {
+  enabled: boolean;
+  title?: string;
+  description?: string;
+}
+
 /** A workspace file reference shown in the @ mention picker. */
 export interface FileListItem {
   path: string;

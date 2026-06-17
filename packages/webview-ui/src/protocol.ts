@@ -81,6 +81,16 @@ export interface ServerInfo {
   reused: boolean;
 }
 
+/**
+ * A server capability advertised via `GET /experimental/features`.
+ * Extension features are disabled when the key is absent or `enabled` is false.
+ */
+export interface FeatureInfo {
+  enabled: boolean;
+  title?: string;
+  description?: string;
+}
+
 export interface UIState {
   status: "stopped" | "starting" | "running" | "error";
   serverError?: string;
@@ -96,6 +106,8 @@ export interface UIState {
   showThinking: boolean;
   autoScroll: boolean;
   enableMentions: boolean;
+  /** Server capabilities from `GET /experimental/features`. Missing key = unavailable. */
+  features: Record<string, FeatureInfo>;
 }
 
 export interface FileListItem {

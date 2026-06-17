@@ -38,6 +38,17 @@ export function Toolbar() {
 
   const currentSession = ui.sessions.find((s) => s.id === ui.currentSessionId);
 
+  // Extension feature: Compact is only usable if the connected server
+  // advertises it via /experimental/features. Missing/disabled → button
+  // disabled with an explanatory hint.
+  const compactFeature = ui.features?.compact;
+  const compactEnabled = Boolean(compactFeature?.enabled);
+  const compactHint = compactEnabled
+    ? compactFeature?.description ?? "Compact context"
+    : compactFeature?.description
+      ? `Unavailable: ${compactFeature.description}`
+      : "Compact is not supported by the connected server";
+
   return (
     <div className="toolbar">
       <select
@@ -134,7 +145,9 @@ export function Toolbar() {
       <button
         className="control"
         onClick={() => actions.compactContext()}
-        title="Compact context"
+        disabled={!compactEnabled}
+        title={compactHint}
+        aria-disabled={!compactEnabled}
       >
         Compact
       </button>

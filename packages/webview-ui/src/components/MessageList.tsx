@@ -48,6 +48,7 @@ function modelLabel(
 export function MessageList() {
   const messages = useStore((s) => s.messages);
   const stream = useStore((s) => s.stream);
+  const activePromptText = useStore((s) => s.activePromptText);
   const tools = useStore((s) => s.tools);
   const busy = useStore((s) => s.busy);
   const providers = useStore((s) => s.ui.providers);
@@ -77,7 +78,7 @@ export function MessageList() {
     if (isNearBottom || busy) {
       end.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-  }, [messages, stream, tools, busy, autoScroll]);
+  }, [messages, activePromptText, stream, tools, busy, autoScroll]);
 
   const handleScroll = () => {
     const list = listRef.current;
@@ -138,6 +139,15 @@ export function MessageList() {
           </div>
         );
       })}
+
+      {activePromptText && !isPlanStream && (
+        <div className="msg msg-user" aria-label="user message">
+          <div className="msg-meta">
+            <span className="msg-role">user</span>
+          </div>
+          <pre className="part part-text">{activePromptText}</pre>
+        </div>
+      )}
 
       {(stream.length > 0 || tools.length > 0 || busy) && (
         <div

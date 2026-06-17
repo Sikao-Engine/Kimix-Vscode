@@ -1,5 +1,6 @@
 import {
   Agent,
+  FeatureInfo,
   MessageWithParts,
   PermissionReply,
   PromptBody,
@@ -14,6 +15,8 @@ export interface OpencodeClientOptions {
   /** Default request timeout in ms (non-stream requests). */
   timeoutMs?: number;
   log?: (msg: string, data?: unknown) => void;
+  /** Raw communication logger (HTTP, SSE raw lines). Default: no-op. */
+  rawLog?: (msg: string, data?: unknown) => void;
 }
 
 export interface StreamOptions {
@@ -33,6 +36,7 @@ export class OpencodeClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly log: (msg: string, data?: unknown) => void;
+  private readonly rawLog: (msg: string, data?: unknown) => void;
 
   constructor(opts: OpencodeClientOptions) {
     this.host = opts.host ?? "127.0.0.1";
@@ -40,6 +44,7 @@ export class OpencodeClient {
     this.baseUrl = `http://${this.host}:${this.port}`;
     this.timeoutMs = opts.timeoutMs ?? 30_000;
     this.log = opts.log ?? (() => {});
+    this.rawLog = opts.rawLog ?? (() => {});
   }
 
   get url(): string {
@@ -146,6 +151,30 @@ export class OpencodeClient {
     return (await this.fetchJson<any>("GET", "/config")) ?? {};
   }
 
+  /**
+   * Discover server capabilities (opencode-sse extensions). Any feature not
+   * present in the response — including when the endpoint is missing or the
+   * request fails — is treated as unavailable by the caller.
+   */
+  async listFeatures(): Promise<Record<string, FeatureInfo>> {
+    try {
+      const data = await this.fetchJson<any>("GET", "/experimental/features");
+      const features = data?.features ?? {};
+      const out: Record<string, FeatureInfo> = {};
+      for (const [key, value] of Object.entries(features)) {
+        const v = value as any;
+        out[key] = {
+          enabled: Boolean(v?.enabled),
+          title: v?.title,
+          description: v?.description,
+        };
+      }
+      return out;
+    } catch {
+      return {};
+    }
+  }
+
   async respondPermission(
     sessionId: string,
     permissionId: string,
@@ -224,6 +253,7 @@ export class OpencodeClient {
     if (!resp.ok || !resp.body) {
       throw new Error(`SSE connect failed: HTTP ${resp.status}`);
     }
+    this.rawLog("[SSE] ★ connected to /event");
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     const parser = new SSELineParser();
@@ -235,11 +265,13 @@ export class OpencodeClient {
         }
         const chunk = decoder.decode(value, { stream: true });
         for (const evt of parser.push(chunk)) {
+          this.rawLog("[SSE] raw", `${evt.event} ${truncate(evt.data, 2000)}`);
           yield evt;
         }
       }
       const tail = parser.flush();
       if (tail) {
+        this.rawLog("[SSE] raw", `${tail.event} ${truncate(tail.data, 2000)}`);
         yield tail;
       }
     } finally {
@@ -248,6 +280,7 @@ export class OpencodeClient {
       } catch {
         /* ignore */
       }
+      this.rawLog("[SSE] ■ disconnected from /event");
     }
   }
 
@@ -273,13 +306,25 @@ export class OpencodeClient {
   ): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const url = `${this.baseUrl}${path}`;
+    const bodyStr = body ? JSON.stringify(body) : undefined;
+    this.rawLog("[HTTP] →", `${method} ${url}${bodyStr ? ` body=${truncate(bodyStr, 2000)}` : ""}`);
     try {
-      return await fetch(`${this.baseUrl}${path}`, {
+      const resp = await fetch(url, {
         method,
         headers: body ? { "Content-Type": "application/json" } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
+        body: bodyStr,
         signal: controller.signal,
       });
+      const cloned = resp.clone();
+      // Read body asynchronously for logging — don't block the caller
+      cloned.text().then((text) => {
+        this.rawLog("[HTTP] ←", `${resp.status} ${method} ${url}${text ? ` body=${truncate(text, 2000)}` : ""}`);
+      }).catch(() => {});
+      return resp;
+    } catch (err) {
+      this.rawLog("[HTTP] ✗", `${method} ${url} — ${String(err)}`);
+      throw err;
     } finally {
       clearTimeout(timer);
     }
@@ -351,4 +396,9 @@ function toMessage(data: any): MessageWithParts {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max) + `… (${s.length - max} more chars)`;
 }

@@ -15,11 +15,15 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
  */
 class LoggerImpl {
   private channel: vscode.OutputChannel | undefined;
+  private rawChannel: vscode.OutputChannel | undefined;
   private level: LogLevel = "info";
 
   configure(name: string, level: LogLevel): void {
     if (!this.channel) {
       this.channel = vscode.window.createOutputChannel(name);
+    }
+    if (!this.rawChannel) {
+      this.rawChannel = vscode.window.createOutputChannel(`${name} — Raw Comm`);
     }
     this.level = level;
   }
@@ -30,6 +34,20 @@ class LoggerImpl {
 
   show(): void {
     this.channel?.show(true);
+  }
+
+  showRaw(): void {
+    this.rawChannel?.show(true);
+  }
+
+  /** Log raw communication data (HTTP request/response, SSE events, bridge messages). */
+  raw(message: string, data?: unknown): void {
+    const ts = new Date().toISOString();
+    let line = `[${ts}] ${message}`;
+    if (data !== undefined) {
+      line += " " + safeStringify(data);
+    }
+    this.rawChannel?.appendLine(line);
   }
 
   debug(message: string, data?: unknown): void {

@@ -10,6 +10,7 @@
 
 import type {
   Agent,
+  FeatureInfo,
   FileListItem,
   MessageWithParts,
   PermissionReply,
@@ -65,6 +66,8 @@ export interface UIState {
   showThinking: boolean;
   autoScroll: boolean;
   enableMentions: boolean;
+  /** Server capabilities from `GET /experimental/features`. Missing key = unavailable. */
+  features: Record<string, FeatureInfo>;
 }
 
 // ── Webview → Host ──────────────────────────────────────────────────
