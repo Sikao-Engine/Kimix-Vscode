@@ -150,6 +150,19 @@ describe("store planState", () => {
     post.mockRestore();
   });
 
+  it("sendPrompt action marks the current turn busy immediately", () => {
+    const post = vi.spyOn(vscodeApi, "postToHost").mockImplementation(() => {});
+    actions.sendPrompt("hello", "turn-1");
+    expect(post).toHaveBeenCalledWith({
+      type: "sendPrompt",
+      text: "hello",
+      turnId: "turn-1",
+    });
+    expect(useStore.getState().busy).toBe(true);
+    expect(useStore.getState().activeTurnId).toBe("turn-1");
+    post.mockRestore();
+  });
+
   it("revisePlan action posts the correct host message", () => {
     const post = vi.spyOn(vscodeApi, "postToHost").mockImplementation(() => {});
     actions.revisePlan("more tests", "turn-2");

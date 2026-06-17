@@ -51,6 +51,7 @@ export interface MessagePart {
   type: PartType;
   text?: string;
   tool?: string;
+  reason?: string;
   state?: Record<string, unknown>;
   raw?: Record<string, unknown>;
 }

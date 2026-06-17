@@ -55,6 +55,7 @@ export interface MessagePart {
   type: string;
   text?: string;
   tool?: string;
+  reason?: string;
   state?: Record<string, unknown>;
 }
 

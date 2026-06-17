@@ -12,6 +12,12 @@ function partText(part: MessagePart): string {
       (part.state as { status?: string } | undefined)?.status ?? "";
     return `🔧 ${part.tool ?? "tool"} ${status}`.trim();
   }
+  if (part.type === "step-finish") {
+    const reason = part.reason ?? part.text ?? "";
+    return reason && reason !== "stop" && reason !== "tool-calls"
+      ? reason
+      : "";
+  }
   return "";
 }
 

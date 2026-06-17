@@ -343,6 +343,7 @@ function toMessage(data: any): MessageWithParts {
       type: p?.type ?? "unknown",
       text: p?.text,
       tool: p?.tool,
+      reason: p?.reason,
       state: p?.state,
       raw: p,
     })),

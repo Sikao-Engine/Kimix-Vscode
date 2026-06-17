@@ -9,6 +9,7 @@ export function Composer() {
   const setText = useStore((s) => s.setComposerText);
   const [mentionQuery, setMentionQuery] = useState<string | undefined>(undefined);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastSendRef = useRef<{ text: string; at: number } | undefined>(undefined);
 
   const busy = useStore((s) => s.busy);
   const status = useStore((s) => s.ui.status);
@@ -30,8 +31,16 @@ export function Composer() {
 
     const turnId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const promptWithRefs = formatRefs(finalText, attachments);
+    const now = Date.now();
+    if (
+      lastSendRef.current?.text === promptWithRefs &&
+      now - lastSendRef.current.at < 500
+    ) {
+      return;
+    }
+    lastSendRef.current = { text: promptWithRefs, at: now };
 
-    if (busy) {
+    if (useStore.getState().busy) {
       if (planMode === "plan") {
         // Do not queue plan prompts; ignore while busy.
         return;

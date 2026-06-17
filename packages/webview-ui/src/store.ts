@@ -410,8 +410,15 @@ function formatRefs(text: string, attachments: FileRef[]): string {
 // ── Action helpers (thin wrappers around postToHost) ────────────────
 
 export const actions = {
-  sendPrompt: (text: string, turnId?: string) =>
-    postToHost({ type: "sendPrompt", text, turnId }),
+  sendPrompt: (text: string, turnId?: string) => {
+    useStore.setState({
+      busy: true,
+      activeTurnId: turnId,
+      stream: [],
+      tools: [],
+    });
+    postToHost({ type: "sendPrompt", text, turnId });
+  },
   generatePlan: (text: string, turnId?: string) => {
     useStore.setState({
       busy: true,

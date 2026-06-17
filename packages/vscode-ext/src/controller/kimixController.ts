@@ -103,6 +103,7 @@ export class KimixController implements vscode.Disposable {
       case "refresh":
         await this.sessions?.refreshSessions();
         this.pushState();
+        await this.pushMessages();
         break;
       case "sendPrompt": {
         if (this.planMode === "plan" && this.config.planModeEnabled) {
