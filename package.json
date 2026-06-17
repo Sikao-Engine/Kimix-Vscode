@@ -2,6 +2,7 @@
     "name": "@sikao-engine/kimix-vscode",
     "public": true,
     "scripts": {
+        "build-plugin": "node scripts/build-plugin.js",
         "build-ext": "node scripts/build-with-deps.js kimix-vscode-ext build",
         "package-ext": "pnpm -r --filter=kimix-vscode-ext run package"
     },
