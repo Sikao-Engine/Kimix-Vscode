@@ -526,3 +526,16 @@ html,
 .plan-review-spacer {
   flex: 1;
 }
+
+.completion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--vscode-testing-iconPassed, #89d185);
+  margin-top: 6px;
+  padding: 2px 8px;
+  background: var(--vscode-badge-background, #4d4d4d);
+  border-radius: 10px;
+  font-weight: 500;
+}

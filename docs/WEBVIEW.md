@@ -52,7 +52,9 @@ The bundle is loaded as `dist/webview.js` resolved through
   (plan actions also set local busy/stream state).
 - **Streaming**: `streamText` appends/merges into the current streaming bubble;
   `streamTool` upserts tool-call rows keyed by `callID`; `streamIdle` finalises
-  the turn and requests a transcript `refresh`. Each streaming turn carries a
+  the turn and requests a transcript `refresh`. After `streamIdle`, a
+  `completion` message sets `completedTurnId` in the store, which renders a
+  "✓ Done" badge on the last assistant message. Each streaming turn carries a
   `turnId`; stale events for an already-stopped turn are ignored.
 - **Plan Mode**: `planState` messages update `ui.planState`. While generating or
   revising, the stream bubble is styled as a plan stream. When the phase becomes

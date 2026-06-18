@@ -2,11 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { OpencodeClient } from "../src/protocol/client";
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
-  return {
+  const resp = {
     ok,
     status,
     text: async () => JSON.stringify(body),
     json: async () => body,
+  };
+  return {
+    ...resp,
+    clone: () => ({ ...resp }) as unknown as Response,
   } as unknown as Response;
 }
 

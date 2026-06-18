@@ -165,11 +165,22 @@ interface PlanState {
 
 `state` (full `UIState` snapshot, now includes `planState`) · `planState` ·
 `messages` · `streamText` · `streamTool` · `streamIdle` · `permission` · `error`
-· `fileList` · `workspaceSymbols` · `aborted`
+· `fileList` · `workspaceSymbols` · `aborted` · `completion`
 
-`streamText`, `streamTool`, `streamIdle` and `aborted` include the optional
-`turnId`. The host pushes a complete `UIState` on every meaningful change (no
-partial diffs), keeping the webview a pure projection of host state.
+`streamText`, `streamTool`, `streamIdle`, `aborted` and `completion` include
+the optional `turnId`. The host pushes a complete `UIState` on every meaningful
+change (no partial diffs), keeping the webview a pure projection of host state.
+
+### Completion message
+
+`completion` is sent synchronously **after** `streamIdle` when a turn finishes
+normally. The webview uses it to display a "✓ Done" badge on the last assistant
+message. The `turnId` guard prevents stale completions from being applied after
+a new turn has started.
+
+```ts
+{ type: "completion"; sessionId: string; turnId?: string; status: "success" | "error" }
+```
 
 ### Workspace mentions
 

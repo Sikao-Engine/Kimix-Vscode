@@ -120,6 +120,11 @@ streamIdle for current turnId
   → store.applyHostMessage
   → if pending has locked item: sendPrompt(locked, newTurnId)
   → else: busy=false, refresh messages
+
+completion (sent synchronously after streamIdle)
+  → store.applyHostMessage
+  → sets completedTurnId
+  → MessageList renders "✓ Done" badge on last assistant message
 ```
 
 ### Stop / abort

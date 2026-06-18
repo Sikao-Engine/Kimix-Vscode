@@ -51,6 +51,8 @@ export function MessageList() {
   const activePromptText = useStore((s) => s.activePromptText);
   const tools = useStore((s) => s.tools);
   const busy = useStore((s) => s.busy);
+  const completedTurnId = useStore((s) => s.completedTurnId);
+  const activeTurnId = useStore((s) => s.activeTurnId);
   const providers = useStore((s) => s.ui.providers);
   const showThinking = useStore((s) => s.ui.showThinking);
   const autoScroll = useStore((s) => s.ui.autoScroll);
@@ -92,7 +94,7 @@ export function MessageList() {
 
   return (
     <div className="messages" ref={listRef} onScroll={handleScroll}>
-      {messages.map((m) => {
+      {messages.map((m, i) => {
         const isAssistant = m.info.role === "assistant";
         const time = formatTime(m.info.createdAt);
         const mLabel = isAssistant
@@ -136,6 +138,16 @@ export function MessageList() {
                   </pre>
                 );
               })}
+          {/* Completion indicator on the last assistant message when turn is complete */}
+          {!busy &&
+            !activeTurnId &&
+            completedTurnId &&
+            m.info.role === "assistant" &&
+            i === messages.length - 1 &&
+            planState.phase === "idle" &&
+            !isPlanStream && (
+              <div className="completion-badge">✓ Done</div>
+            )}
           </div>
         );
       })}

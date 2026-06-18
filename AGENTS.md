@@ -196,7 +196,7 @@ Mirrored files — **keep in sync**: `vscode-ext/src/protocol/messages.ts` ⇄ `
 
 **Webview → Host:** `ready` · `sendPrompt` · `generatePlan` · `revisePlan` · `implementPlan` · `discardPlan` · `abort` · `newSession` · `selectSession` · `deleteSession` · `selectAgent` · `selectModel` · `setPlanMode` · `compactContext` · `respondPermission` · `refresh` · `requestFileList` · `requestWorkspaceSymbols` · `openPlanFile`
 
-**Host → Webview:** `state` (full UIState snapshot incl. `planState`) · `planState` · `messages` · `streamText` · `streamTool` · `streamIdle` · `permission` · `error` · `fileList` · `workspaceSymbols` · `aborted`
+**Host → Webview:** `state` (full UIState snapshot incl. `planState`) · `planState` · `messages` · `streamText` · `streamTool` · `streamIdle` · `permission` · `error` · `fileList` · `workspaceSymbols` · `aborted` · `completion`
 
 `sendPrompt`/`abort` carry an optional `turnId`; streaming replies echo it so
 the webview can discard stale events after stop or a queued follow-up.

@@ -47,6 +47,9 @@ interface StoreState {
   busy: boolean;
   errorBanner: string | undefined;
 
+  /** Turn ID of the last completed turn, for showing a completion badge on the archived assistant message. */
+  completedTurnId: string | undefined;
+
   /** Id of the turn that is currently allowed to update busy/stream state. */
   activeTurnId: string | undefined;
   activePromptText: string | undefined;
@@ -123,6 +126,7 @@ export const useStore = create<StoreState>((set, get) => ({
   permission: undefined,
   busy: false,
   errorBanner: undefined,
+  completedTurnId: undefined,
   activeTurnId: undefined,
   activePromptText: undefined,
   pending: [],
@@ -139,6 +143,7 @@ export const useStore = create<StoreState>((set, get) => ({
       stream: [],
       tools: [],
       busy: false,
+      completedTurnId: undefined,
       activeTurnId: undefined,
       activePromptText: undefined,
     }),
@@ -158,6 +163,7 @@ export const useStore = create<StoreState>((set, get) => ({
           updates.busy = false;
         } else if (next === "idle") {
           updates.busy = false;
+          updates.completedTurnId = undefined;
           if (
             prev === "reviewing" ||
             prev === "generating" ||
@@ -181,6 +187,7 @@ export const useStore = create<StoreState>((set, get) => ({
           stream: [],
           tools: [],
           busy: false,
+          completedTurnId: undefined,
           activePromptText: undefined,
         });
         break;
@@ -240,6 +247,7 @@ export const useStore = create<StoreState>((set, get) => ({
             messages: completedMessages,
             pending: nextPending,
             busy: true,
+            completedTurnId: undefined,
             activeTurnId: nextId,
             activePromptText: locked.text,
             stream: [],
@@ -270,11 +278,21 @@ export const useStore = create<StoreState>((set, get) => ({
         }
         set({
           busy: false,
+          completedTurnId: undefined,
           activeTurnId: undefined,
           activePromptText: undefined,
           stream: [],
           tools: [],
         });
+        break;
+      }
+      case "completion": {
+        const { activeTurnId } = get();
+        // Ignore stale completion events with a different (or no) turnId
+        if (msg.turnId && activeTurnId && msg.turnId !== activeTurnId) {
+          return;
+        }
+        set({ completedTurnId: msg.turnId || "completed" });
         break;
       }
       case "permission":
@@ -391,6 +409,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const turnId = get().activeTurnId;
     set({
       busy: false,
+      completedTurnId: undefined,
       activeTurnId: undefined,
       activePromptText: undefined,
       stream: [],
@@ -479,6 +498,7 @@ export const actions = {
   sendPrompt: (text: string, turnId?: string) => {
     useStore.setState({
       busy: true,
+      completedTurnId: undefined,
       activeTurnId: turnId,
       activePromptText: text,
       stream: [],
@@ -489,6 +509,7 @@ export const actions = {
   generatePlan: (text: string, turnId?: string) => {
     useStore.setState({
       busy: true,
+      completedTurnId: undefined,
       activeTurnId: turnId,
       stream: [],
       tools: [],
@@ -498,6 +519,7 @@ export const actions = {
   revisePlan: (feedback: string, turnId?: string) => {
     useStore.setState({
       busy: true,
+      completedTurnId: undefined,
       activeTurnId: turnId,
       stream: [],
       tools: [],

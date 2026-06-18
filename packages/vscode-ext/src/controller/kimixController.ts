@@ -507,13 +507,19 @@ export class KimixController implements vscode.Disposable {
         input: e.input,
       }),
     );
-    sm.on("idle", (e) =>
+    sm.on("idle", (e) => {
       this.post({
         type: "streamIdle",
         sessionId: e.sessionId,
         turnId: this.currentTurnId,
-      }),
-    );
+      });
+      this.post({
+        type: "completion",
+        sessionId: e.sessionId,
+        turnId: this.currentTurnId,
+        status: "success",
+      });
+    });
     sm.on("permission", (e) =>
       this.post({
         type: "permission",

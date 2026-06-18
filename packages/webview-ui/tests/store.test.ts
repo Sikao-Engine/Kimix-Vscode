@@ -8,6 +8,7 @@ function resetStore() {
     stream: [],
     tools: [],
     busy: false,
+    completedTurnId: undefined,
     activeTurnId: undefined,
     activePromptText: undefined,
     pending: [],
@@ -211,5 +212,94 @@ describe("store streaming turn id", () => {
     useStore.getState().stopGeneration();
     expect(useStore.getState().busy).toBe(false);
     expect(useStore.getState().activeTurnId).toBeUndefined();
+  });
+});
+
+describe("store completion indicator", () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it("completion message sets completedTurnId", () => {
+    useStore.setState({ busy: true, activeTurnId: "turn-1" });
+    useStore.getState().applyHostMessage({
+      type: "completion",
+      sessionId: "s1",
+      turnId: "turn-1",
+      status: "success",
+    });
+    expect(useStore.getState().completedTurnId).toBe("turn-1");
+  });
+
+  it("stale completion with wrong turnId is ignored", () => {
+    useStore.setState({ busy: true, activeTurnId: "turn-2" });
+    useStore.getState().applyHostMessage({
+      type: "completion",
+      sessionId: "s1",
+      turnId: "turn-1",
+      status: "success",
+    });
+    expect(useStore.getState().completedTurnId).toBeUndefined();
+  });
+
+  it("sendPrompt clears completedTurnId", () => {
+    useStore.setState({ completedTurnId: "turn-1", busy: false });
+    actions.sendPrompt("Hello", "turn-2");
+    expect(useStore.getState().completedTurnId).toBeUndefined();
+  });
+
+  it("abort clears completedTurnId", () => {
+    useStore.setState({
+      completedTurnId: "turn-1",
+      busy: true,
+      activeTurnId: "turn-1",
+    });
+    useStore.getState().applyHostMessage({
+      type: "aborted",
+      sessionId: "s1",
+      turnId: "turn-1",
+    });
+    expect(useStore.getState().completedTurnId).toBeUndefined();
+  });
+
+  it("messages host message clears completedTurnId", () => {
+    useStore.setState({ completedTurnId: "turn-1" });
+    useStore.getState().applyHostMessage({
+      type: "messages",
+      sessionId: "s1",
+      messages: [],
+    });
+    expect(useStore.getState().completedTurnId).toBeUndefined();
+  });
+
+  it("stopGeneration clears completedTurnId", () => {
+    useStore.setState({
+      completedTurnId: "turn-1",
+      busy: true,
+      activeTurnId: "turn-1",
+    });
+    useStore.getState().stopGeneration();
+    expect(useStore.getState().completedTurnId).toBeUndefined();
+  });
+
+  it("planState idle transition clears completedTurnId", () => {
+    useStore.setState({ completedTurnId: "turn-1" });
+    useStore.getState().applyHostMessage({
+      type: "planState",
+      state: { phase: "idle", attempt: 0, maxAttempts: 3 },
+    });
+    expect(useStore.getState().completedTurnId).toBeUndefined();
+  });
+
+  it("generatePlan clears completedTurnId", () => {
+    useStore.setState({ completedTurnId: "turn-1" });
+    actions.generatePlan("req", "turn-2");
+    expect(useStore.getState().completedTurnId).toBeUndefined();
+  });
+
+  it("revisePlan clears completedTurnId", () => {
+    useStore.setState({ completedTurnId: "turn-1" });
+    actions.revisePlan("feedback", "turn-2");
+    expect(useStore.getState().completedTurnId).toBeUndefined();
   });
 });

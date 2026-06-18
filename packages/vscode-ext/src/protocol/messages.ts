@@ -130,4 +130,10 @@ export type HostToWebview =
   | { type: "error"; message: string }
   | { type: "fileList"; files: FileListItem[] }
   | { type: "workspaceSymbols"; symbols: SymbolListItem[] }
-  | { type: "aborted"; sessionId: string; turnId?: string };
+  | { type: "aborted"; sessionId: string; turnId?: string }
+  | {
+      type: "completion";
+      sessionId: string;
+      turnId?: string;
+      status: "success" | "error";
+    };
