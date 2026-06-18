@@ -178,9 +178,12 @@ html,
 
 .part {
   margin: 0;
-  white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;
+}
+
+pre.part {
+  white-space: pre-wrap;
 }
 
 .part-reasoning {
@@ -194,6 +197,120 @@ html,
 
 .reasoning-block {
   margin-top: 4px;
+}
+
+.markdown-body {
+  line-height: 1.5;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin: 0.5em 0 0.3em 0;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.markdown-body h1 {
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--vscode-panel-border, #555);
+  padding-bottom: 0.2em;
+}
+
+.markdown-body h2 {
+  font-size: 1.3em;
+  border-bottom: 1px solid var(--vscode-panel-border, #555);
+  padding-bottom: 0.2em;
+}
+
+.markdown-body h3 {
+  font-size: 1.15em;
+}
+
+.markdown-body h4 {
+  font-size: 1.05em;
+}
+
+.markdown-body h5,
+.markdown-body h6 {
+  font-size: 1em;
+}
+
+.markdown-body p {
+  margin: 0 0 0.5em 0;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--vscode-panel-border, #555);
+  margin: 0.8em 0;
+}
+
+.markdown-body pre {
+  background: var(--vscode-textCodeBlock-background, #2d2d30);
+  color: var(--vscode-textCodeBlock-foreground);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.markdown-body code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.92em;
+}
+
+.markdown-body :not(pre) > code {
+  color: var(--vscode-textPreformat-foreground, #ce9178);
+}
+
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-body blockquote {
+  margin: 0 0 0.5em 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--vscode-panel-border, #555);
+  opacity: 0.85;
+}
+
+.markdown-body a {
+  color: var(--vscode-textLink-foreground, #3794ff);
+}
+
+.markdown-body a:hover {
+  color: var(--vscode-textLink-activeForeground, #3794ff);
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  margin-bottom: 0.5em;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--vscode-panel-border, #555);
+  padding: 4px 8px;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0 0 0.5em 1.2em;
+  padding-left: 1em;
+}
+
+.markdown-body input[type="checkbox"] {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.markdown-body img {
+  max-width: 100%;
 }
 
 .reasoning-toggle {

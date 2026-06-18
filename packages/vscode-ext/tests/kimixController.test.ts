@@ -250,3 +250,74 @@ describe("KimixController dispatch", () => {
     });
   });
 });
+
+
+describe("KimixController lifecycle", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls afterStart with the real allocated fallback port", async () => {
+    const controller = createController();
+    const afterStart = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).afterStart = afterStart;
+
+    const startMock = vi.fn().mockResolvedValue({
+      kind: "started",
+      info: { port: 4097, pid: 12345, owned: true, reused: false, basePort: 4096 },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).server = {
+      status: "stopped",
+      start: startMock,
+      info: { port: 4097, pid: 12345, owned: true, reused: false, basePort: 4096 },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (controller as any).ensureStarted();
+
+    expect(startMock).toHaveBeenCalled();
+    expect(afterStart).toHaveBeenCalledWith(4097);
+  });
+
+  it("prompts the user when a foreign server is detected and fallback is disabled", async () => {
+    const controller = createController();
+    const showInfo = vi
+      .spyOn(vscode.window, "showInformationMessage")
+      .mockResolvedValue(undefined);
+    const afterStart = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).afterStart = afterStart;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).config = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(controller as any).config,
+      autoFallbackPort: false,
+    };
+
+    const startMock = vi.fn().mockResolvedValue({
+      kind: "foreign",
+      port: 4096,
+      pid: 7777,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (controller as any).server = {
+      status: "stopped",
+      start: startMock,
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (controller as any).ensureStarted();
+
+    expect(showInfo).toHaveBeenCalledWith(
+      "An opencode server is already running on port 4096 (PID 7777).",
+      { modal: false },
+      "Reuse",
+      "Stop & start new",
+      "Start on another port",
+    );
+    expect(afterStart).not.toHaveBeenCalled();
+  });
+});

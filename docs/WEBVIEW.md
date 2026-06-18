@@ -62,6 +62,9 @@ The bundle is loaded as `dist/webview.js` resolved through
 - **Pending queue**: while the model is busy, new prompts are queued locally and
   shown in `PendingQueue` above the composer. The locked item is submitted
   automatically when the current turn ends.
+- **Markdown rendering**: assistant `text` parts and the live assistant stream
+  bubble are rendered through `MarkdownRenderer` using `marked` + `DOMPurify`.
+  User prompts and reasoning blocks stay plain text.
 - **Reasoning**: reasoning parts render inside collapsible `ReasoningBlock`
   cards. A global collapse/expand toggle is available in the toolbar.
 - **Mentions**: typing `@` in `Composer` opens `MentionPicker`, which queries
@@ -76,6 +79,7 @@ The bundle is loaded as `dist/webview.js` resolved through
 | --------- | ------- |
 | `Toolbar` | Agent/model/session pickers, plan mode, reasoning collapse, server controls |
 | `MessageList` | Persisted transcript + streaming bubble, timestamps, model labels, auto-scroll |
+| `MarkdownRenderer` | Renders assistant text parts as sanitized Markdown HTML |
 | `ReasoningBlock` | Collapsible reasoning/thinking content |
 | `PendingQueue` | Queued prompts shown above the composer |
 | `Composer` | Auto-resizing textarea, @ mentions, attachment chips, Send/Stop |

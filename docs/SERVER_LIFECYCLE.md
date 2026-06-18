@@ -6,8 +6,9 @@
 
 1. **No leaked processes** — every process we spawn is tracked and terminated when the extension shuts down (explicit `deactivate()`, extension-host crash, SIGTERM/SIGINT, etc.).
 2. **Detect and reuse existing processes** — on startup we first look for a process that is already listening on the configured port. If it is healthy we either:
-   - **adopt** it (it is a leftover from a previous extension instance), or
-   - **prompt the user** to reuse / stop / start on another port (it is a foreign process).
+   - **adopt** it (it is a leftover from a previous extension instance),
+   - **silently fall back** to the next free port (it is a foreign process and `kimix.autoFallbackPort` is `true`, the default), or
+   - **prompt the user** to reuse / stop / start on another port (only when `kimix.autoFallbackPort` is `false`).
 3. **Foreground management** — users can start, stop and restart the server from the command palette, the status bar and the webview toolbar.
 4. **Crash safety** — a persisted PID/state file lets the next extension activation clean up orphans left by an abrupt shutdown.
 5. **Testability** — the core lifecycle manager imports no `vscode` code and can be unit-tested with mocked file-system, child-process and network APIs.
@@ -66,21 +67,23 @@ start()
 │
 ├─ Probe configured basePort /global/health
 │   ├─ healthy but no PID file → foreign process
-│   │   → return foreign(port)
+│   │   → skip occupied port → findFreePort(..., avoid={basePort})
 │   └─ unhealthy / port free → continue
 │
-├─ findFreePort(basePort...) → spawn new process
+├─ findFreePort(basePort, avoid={occupied ports}) → spawn new process
 │   ├─ health OK → write PID file → return started(owned=true, reused=false)
 │   └─ health failed → kill child → return error
 ```
 
 ### User choices when a foreign process is detected
 
-The controller shows an information message with three actions:
+When `kimix.autoFallbackPort` is `false`, the controller shows an information message with three actions:
 
 1. **Reuse** — `manager.start({ reuseForeign: true })`. The extension attaches to the foreign server but does **not** own it; it will not be killed on extension exit.
 2. **Stop it & start new** — `manager.start({ killForeign: true })`. The manager finds the PID by port, kills the process tree, then spawns a new owned server.
 3. **Start on another port** — `manager.start({ fallbackToNextPort: true })`. The manager ignores the foreign listener, scans upward for a free port and spawns there.
+
+When `kimix.autoFallbackPort` is `true` (the default), the manager performs action 3 automatically without prompting.
 
 ## 5. Stop / disposal guarantees
 
@@ -183,7 +186,7 @@ The host sends a full `state` message whenever server status changes, so the web
 | Spawn fails (binary missing) | Status `error`, `lastError` shown in UI, child killed if it exists. |
 | Health check times out | Child killed, PID file removed, status `error`. |
 | PID file points to dead PID | File removed, new server spawned. |
-| Foreign process on basePort | User prompted; default action is **prompt**, never silent reuse of an untrusted process. |
+| Foreign process on basePort | Automatically falls back to the next free port by default (`kimix.autoFallbackPort: true`). Prompts only when `kimix.autoFallbackPort` is `false`. |
 | Cannot determine PID of foreign process | "Stop it & start new" falls back to telling the user to stop the process manually. |
 | Extension host crashes | Next activation reads stale PID file, validates health, adopts or cleans. |
 
@@ -199,8 +202,9 @@ Key cases:
 
 1. Spawns new server and writes PID file.
 2. Reuses previous instance from PID file.
-3. Detects foreign process and returns `foreign`.
-4. `reuseForeign: true` adopts without spawning.
+3. Detects foreign process and automatically falls back to the next free port by default.
+4. Returns `foreign` when `autoFallbackPort` is disabled.
+5. `reuseForeign: true` adopts without spawning.
 5. `killForeign: true` kills foreign and spawns new.
 6. `fallbackToNextPort: true` spawns on next free port.
 7. `stop()` kills owned child and removes PID file.

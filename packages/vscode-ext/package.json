@@ -51,6 +51,11 @@
           "default": 4096,
           "description": "Starting port for the server; the extension scans upward for a free one"
         },
+        "kimix.autoFallbackPort": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically fall back to the next free port when the base port is occupied by a foreign process"
+        },
         "kimix.environmentVariables": {
           "type": "object",
           "default": {},

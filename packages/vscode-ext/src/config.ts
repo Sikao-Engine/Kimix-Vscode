@@ -4,6 +4,7 @@ export interface KimixConfig {
   executable: string;
   host: string;
   basePort: number;
+  autoFallbackPort: boolean;
   environmentVariables: Record<string, string>;
   showThinking: boolean;
   autoScroll: boolean;
@@ -24,6 +25,7 @@ export function readConfig(): KimixConfig {
     executable: c.get<string>("executable", "opencode") || "opencode",
     host: c.get<string>("host", "127.0.0.1") || "127.0.0.1",
     basePort: c.get<number>("basePort", 4096) || 4096,
+    autoFallbackPort: c.get<boolean>("autoFallbackPort", true),
     environmentVariables: c.get<Record<string, string>>(
       "environmentVariables",
       {},

@@ -386,6 +386,7 @@ export class KimixController implements vscode.Disposable {
         cwd: this.workspaceRoot,
         host: this.config.host,
         basePort: this.config.basePort,
+        autoFallbackPort: this.config.autoFallbackPort,
         env: this.config.environmentVariables,
         pidFilePath: this.pidFilePath,
       };
@@ -395,7 +396,14 @@ export class KimixController implements vscode.Disposable {
     const result = await this.server.start();
 
     if (result.kind === "started") {
-      await this.afterStart(result.info.port ?? this.config.basePort);
+      const port = result.info.port;
+      if (!port) {
+        this.serverStatus = "error";
+        this.serverError = "server started but reported no port";
+        this.pushState();
+        return;
+      }
+      await this.afterStart(port);
       return;
     }
 
@@ -420,7 +428,14 @@ export class KimixController implements vscode.Disposable {
       }
 
       if (followUp?.kind === "started") {
-        await this.afterStart(followUp.info.port ?? this.config.basePort);
+        const port = followUp.info.port;
+        if (!port) {
+          this.serverStatus = "error";
+          this.serverError = "server started but reported no port";
+          this.pushState();
+          return;
+        }
+        await this.afterStart(port);
         return;
       }
 

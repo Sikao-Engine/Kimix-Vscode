@@ -340,7 +340,7 @@ export async function findFreePort(
   from: number,
   avoid?: Set<number>,
 ): Promise<number> {
-  for (let port = from; port < from + 200; port++) {
+  for (let port = from; port < from + 1000; port++) {
     if (avoid?.has(port)) {
       continue;
     }

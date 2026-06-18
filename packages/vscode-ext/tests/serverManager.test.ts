@@ -171,6 +171,7 @@ describe("ServerLifecycleManager", () => {
   }
 
   function createManager(overrides?: {
+    autoFallbackPort?: boolean;
     findFreePort?: (host: string, from: number, avoid?: Set<number>) => Promise<number>;
     findPidByPort?: (host: string, port: number) => Promise<number | undefined>;
   }) {
@@ -179,6 +180,7 @@ describe("ServerLifecycleManager", () => {
       cwd: "/tmp",
       host: "127.0.0.1",
       basePort: 4096,
+      autoFallbackPort: overrides?.autoFallbackPort ?? true,
       startupTimeoutMs: 500,
       pidFilePath: "/tmp/kimix-server/test.json",
       findFreePort:
@@ -223,9 +225,26 @@ describe("ServerLifecycleManager", () => {
     expect(currentServerMock).toBe(before);
   });
 
-  it("detects a foreign healthy server and lets the caller decide", async () => {
+  it("automatically falls back to the next free port when base port is occupied", async () => {
+    makePortHealthy(4096, 4097);
+    const m = createManager({
+      findPidByPort: async () => 7777,
+    });
+    const result = await m.start();
+    expect(result.kind).toBe("started");
+    if (result.kind !== "started") {
+      return;
+    }
+    expect(result.info.port).toBe(4097);
+    expect(result.info.owned).toBe(true);
+    expect(result.info.reused).toBe(false);
+    expect(result.info.basePort).toBe(4096);
+  });
+
+  it("returns foreign when autoFallbackPort is disabled", async () => {
     makePortHealthy(4096);
     const m = createManager({
+      autoFallbackPort: false,
       findPidByPort: async () => 7777,
     });
     const result = await m.start();
@@ -279,6 +298,30 @@ describe("ServerLifecycleManager", () => {
     }
     expect(result.info.port).toBe(4097);
     expect(result.info.owned).toBe(true);
+  });
+
+  it("picks the next free port when multiple consecutive ports are occupied", async () => {
+    makePortHealthy(4096, 4097, 4098);
+    const occupied = new Set([4096, 4097]);
+    const m = createManager({
+      findPidByPort: async () => 7777,
+      findFreePort: async (_host, from, avoid) => {
+        for (let p = from; p < from + 10; p++) {
+          if (!avoid?.has(p) && !occupied.has(p)) {
+            return p;
+          }
+        }
+        throw new Error("no free port");
+      },
+    });
+    const result = await m.start();
+    expect(result.kind).toBe("started");
+    if (result.kind !== "started") {
+      return;
+    }
+    expect(result.info.port).toBe(4098);
+    expect(result.info.owned).toBe(true);
+    expect(result.info.reused).toBe(false);
   });
 
   it("adopts a previous instance from the PID file", async () => {

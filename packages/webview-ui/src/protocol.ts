@@ -79,6 +79,7 @@ export interface ServerInfo {
   pid?: number;
   owned: boolean;
   reused: boolean;
+  basePort?: number;
 }
 
 /**

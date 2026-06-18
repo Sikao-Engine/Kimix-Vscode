@@ -104,9 +104,12 @@ packages/webview-ui/
     ├── protocol.ts             # Webview-side message types (mirrors messages.ts)
     ├── vscodeApi.ts            # Typed acquireVsCodeApi() wrapper
     ├── styles.css              # All styles (JS-injected)
+    ├── markdown/
+    │   └── markdown.ts         # Markdown parsing + sanitization (marked + DOMPurify)
     └── components/
         ├── Toolbar.tsx         # Agent/model/session pickers, Plan Mode, reasoning collapse, server controls
         ├── MessageList.tsx     # Persisted messages + streaming bubbles + tool calls + timestamps + model labels
+        ├── MarkdownRenderer.tsx # Renders assistant text as sanitized Markdown HTML
         ├── Composer.tsx        # Prompt textarea + @ mentions + attachments + Send/Stop
         ├── MentionPicker.tsx   # File/symbol search results for @ mentions
         ├── PendingQueue.tsx    # Queued prompts shown above composer
@@ -178,6 +181,7 @@ Process-exit safety: process.on('exit'|'SIGTERM'|'SIGINT'|'SIGHUP') → kill() +
 | `kimix.executable` | `opencode` | Server CLI name or path |
 | `kimix.host` | `127.0.0.1` | Bind host |
 | `kimix.basePort` | `4096` | Starting port (scans upward) |
+| `kimix.autoFallbackPort` | `true` | Automatically fall back to the next free port when the base port is occupied |
 | `kimix.environmentVariables` | `{}` | Extra env for server process |
 | `kimix.showThinking` | `true` | Show reasoning in UI |
 | `kimix.autoScroll` | `true` | Auto-scroll during streaming |

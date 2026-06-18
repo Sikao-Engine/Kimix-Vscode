@@ -18,6 +18,7 @@ export interface ServerInfo {
   pid?: number;
   owned: boolean;
   reused: boolean;
+  basePort?: number;
 }
 
 export type StartResult =
@@ -37,6 +38,8 @@ export interface ServerLifecycleManagerConfig {
   startupTimeoutMs?: number;
   /** Absolute path to the JSON PID/state file. */
   pidFilePath: string;
+  /** When true (default), silently fall back to the next free port if the base port is occupied by a foreign process. */
+  autoFallbackPort?: boolean;
   /** Optional override for testing. */
   findFreePort?: (host: string, from: number, avoid?: Set<number>) => Promise<number>;
   /** Optional override for testing. */
@@ -60,15 +63,16 @@ interface PidFileRecord {
  */
 export class ServerLifecycleManager {
   private readonly config: Required<
-    Omit<
-      ServerLifecycleManagerConfig,
-      "env" | "findFreePort" | "findPidByPort"
-    >
-  > & {
-    env?: Record<string, string>;
-    findFreePort: (host: string, from: number, avoid?: Set<number>) => Promise<number>;
-    findPidByPort: (host: string, port: number) => Promise<number | undefined>;
-  };
+      Omit<
+        ServerLifecycleManagerConfig,
+        "env" | "findFreePort" | "findPidByPort" | "autoFallbackPort"
+      >
+    > & {
+      env?: Record<string, string>;
+      autoFallbackPort: boolean;
+      findFreePort: (host: string, from: number, avoid?: Set<number>) => Promise<number>;
+      findPidByPort: (host: string, port: number) => Promise<number | undefined>;
+    };
 
   private readonly token: string;
   private _status: ManagerStatus = "stopped";
@@ -95,6 +99,7 @@ export class ServerLifecycleManager {
       basePort: config.basePort ?? 4096,
       startupTimeoutMs: config.startupTimeoutMs ?? 20_000,
       pidFilePath: config.pidFilePath,
+      autoFallbackPort: config.autoFallbackPort ?? true,
       env: config.env,
       findFreePort: config.findFreePort ?? findFreePort,
       findPidByPort: config.findPidByPort ?? findPidByPort,
@@ -119,8 +124,9 @@ export class ServerLifecycleManager {
    *
    * - If the configured port already has a healthy server that we own (via PID
    *   file), adopt it.
-   * - If the port has a healthy foreign server, return `foreign` unless an
-   *   action option is supplied.
+   * - If the port has a healthy foreign server, fall back to the next free
+   *   port by default (`autoFallbackPort`). Return `foreign` only when fallback
+   *   is disabled and no explicit action option is supplied.
    * - Otherwise spawn a new process on a free port.
    */
   start(options?: {
@@ -176,12 +182,13 @@ export class ServerLifecycleManager {
             `[server-manager] adopting previous instance pid=${record.pid} port=${record.port}`,
           );
           this.activePid = record.pid;
-          this._info = {
-            port: record.port,
-            pid: record.pid,
-            owned: true,
-            reused: true,
-          };
+    this._info = {
+      port: record.port,
+      pid: record.pid,
+      owned: true,
+      reused: true,
+      basePort: this.config.basePort,
+    };
           await this.writePidFile(record.port, record.pid);
           this._setStatus("running");
           this.registerExitHandler();
@@ -209,6 +216,7 @@ export class ServerLifecycleManager {
             pid: foreignPid,
             owned: false,
             reused: true,
+            basePort: this.config.basePort,
           };
           this._setStatus("running");
           return { kind: "started", info: this.info };
@@ -230,17 +238,24 @@ export class ServerLifecycleManager {
             return { kind: "error", error: msg };
           }
           // Fall through to spawn on the now-free base port.
-        } else if (!options?.fallbackToNextPort) {
+        }
+
+        const shouldFallback =
+          options?.fallbackToNextPort || this.config.autoFallbackPort;
+        if (!shouldFallback) {
           Logger.info(
             `[server-manager] detected foreign server port=${basePort} pid=${foreignPid ?? "unknown"}`,
           );
           return { kind: "foreign", port: basePort, pid: foreignPid };
         }
+
+        Logger.info(
+          `[server-manager] base port ${basePort} occupied by pid=${foreignPid ?? "unknown"}; falling back to next free port`,
+        );
       }
 
       // 3. Spawn a new process on a free port.
-      const avoidPorts =
-        options?.fallbackToNextPort && foreignHealthy ? new Set([basePort]) : undefined;
+      const avoidPorts = foreignHealthy ? new Set([basePort]) : undefined;
       const port = await this.config.findFreePort(
         this.config.host,
         basePort,
@@ -279,7 +294,7 @@ export class ServerLifecycleManager {
 
       this.spawnedServer = server;
       this.activePid = pid;
-      this._info = { port, pid, owned: true, reused: false };
+      this._info = { port, pid, owned: true, reused: false, basePort: this.config.basePort };
       await this.writePidFile(port, pid);
       this._setStatus("running");
       this.registerExitHandler();

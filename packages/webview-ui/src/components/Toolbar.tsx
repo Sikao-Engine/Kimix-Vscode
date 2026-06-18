@@ -178,7 +178,12 @@ export function Toolbar() {
           className={`control status-chip ${ui.serverInfo.owned ? "owned" : "foreign"}`}
           title={
             ui.serverInfo.owned
-              ? `Running on port ${ui.serverInfo.port}`
+              ? `Running on port ${ui.serverInfo.port}${
+                  ui.serverInfo.basePort &&
+                  ui.serverInfo.port !== ui.serverInfo.basePort
+                    ? ` (fallback from ${ui.serverInfo.basePort})`
+                    : ""
+                }`
               : `Reused foreign server on port ${ui.serverInfo.port}`
           }
         >

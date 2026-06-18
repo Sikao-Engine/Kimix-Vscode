@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { actions, useStore } from "../store";
 import type { MessagePart } from "../protocol";
 import { ReasoningBlock } from "./ReasoningBlock";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 function partText(part: MessagePart): string {
   if (part.type === "text" || part.type === "reasoning") {
@@ -132,6 +133,15 @@ export function MessageList() {
                 if (!text) {
                   return null;
                 }
+                if (p.type === "text" && m.info.role === "assistant") {
+                  return (
+                    <MarkdownRenderer
+                      key={i}
+                      className="part part-text markdown-body"
+                      text={text}
+                    />
+                  );
+                }
                 return (
                   <pre key={i} className={`part part-${p.type}`}>
                     {text}
@@ -157,7 +167,7 @@ export function MessageList() {
           <div className="msg-meta">
             <span className="msg-role">user</span>
           </div>
-          <pre className="part part-text">{activePromptText}</pre>
+          <pre className="part part-text user-text">{activePromptText}</pre>
         </div>
       )}
 
@@ -191,9 +201,11 @@ export function MessageList() {
                 text={b.text}
               />
             ) : (
-              <pre key={b.id} className={`part part-${b.kind}`}>
-                {b.text}
-              </pre>
+              <MarkdownRenderer
+                key={b.id}
+                className="part part-text markdown-body"
+                text={b.text}
+              />
             ),
           )}
 

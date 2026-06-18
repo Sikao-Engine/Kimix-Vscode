@@ -201,6 +201,7 @@ pnpm --filter kimix-vscode-ext run package    # produce .vsix
 | `kimix.executable`           | `opencode`    | Server CLI name or absolute path          |
 | `kimix.host`                 | `127.0.0.1`   | Bind host                                 |
 | `kimix.basePort`             | `4096`        | Starting port (scans upward if taken)     |
+| `kimix.autoFallbackPort`     | `true`        | Automatically fall back when base port is occupied |
 | `kimix.environmentVariables` | `{}`          | Extra env vars for the server process     |
 | `kimix.showThinking`         | `true`        | Show reasoning content in the UI          |
 | `kimix.autoScroll`           | `true`        | Auto-scroll during streaming              |
